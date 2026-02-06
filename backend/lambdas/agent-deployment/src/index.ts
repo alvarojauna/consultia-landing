@@ -42,6 +42,31 @@ interface DeploymentEvent {
   phone_id?: string;
 }
 
+// Individual event types for each action
+type CreateAgentEvent = DeploymentEvent & {
+  action: 'create-agent';
+  voice_id: string;
+  voice_name: string;
+};
+
+type ProvisionNumberEvent = DeploymentEvent & {
+  action: 'provision-number';
+  elevenlabs_agent_id: string;
+  webhook_url: string;
+};
+
+type LinkNumberEvent = DeploymentEvent & {
+  action: 'link-number';
+  phone_number: string;
+  twilio_sid: string;
+};
+
+type UpdateDatabaseEvent = DeploymentEvent & {
+  action: 'update-database';
+  elevenlabs_agent_id: string;
+  phone_number: string;
+};
+
 export const handler = async (event: DeploymentEvent): Promise<any> => {
   console.log('[Agent Deployment] Event:', JSON.stringify(event));
 
@@ -50,16 +75,20 @@ export const handler = async (event: DeploymentEvent): Promise<any> => {
   try {
     switch (action) {
       case 'create-agent':
-        return await createAgent(event);
+        if (!event.voice_id) throw new Error('voice_id is required for create-agent');
+        return await createAgent(event as any);
 
       case 'provision-number':
-        return await provisionNumber(event);
+        if (!event.elevenlabs_agent_id) throw new Error('elevenlabs_agent_id is required for provision-number');
+        return await provisionNumber(event as any);
 
       case 'link-number':
-        return await linkNumber(event);
+        if (!event.phone_number) throw new Error('phone_number is required for link-number');
+        return await linkNumber(event as any);
 
       case 'update-database':
-        return await updateDatabase(event);
+        if (!event.elevenlabs_agent_id) throw new Error('elevenlabs_agent_id is required for update-database');
+        return await updateDatabase(event as any);
 
       default:
         throw new Error(`Unknown action: ${action}`);

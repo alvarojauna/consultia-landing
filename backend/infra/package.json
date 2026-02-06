@@ -1,0 +1,19 @@
+{
+  "name": "consultia-backend-infra",
+  "version": "1.0.0",
+  "description": "AWS CDK Infrastructure for ConsultIA Backend",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "cdk": "cdk"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "~5.7.2"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.147.3",
+    "constructs": "^10.0.0"
+  }
+}

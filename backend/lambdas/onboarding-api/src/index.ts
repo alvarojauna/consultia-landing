@@ -43,20 +43,21 @@ import { handleSelectPlan, handleCompletePayment } from './routes/payment';
 export const handler = async (
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> => {
+  const requestId = event.requestContext.requestId;
+
   // Handle CORS preflight
   if (event.httpMethod === 'OPTIONS') {
     return createCorsResponse();
   }
 
   // Log request
-  logRequest(event);
+  logRequest(event, requestId);
 
   try {
     // Initialize database connection pool (cached across invocations)
     await initializePool();
 
     const { httpMethod, path } = event;
-    const requestId = event.requestContext.requestId;
 
     // Route to appropriate handler
     // ========================================

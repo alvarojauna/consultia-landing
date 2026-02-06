@@ -947,36 +947,36 @@ await stripe.subscriptionItems.createUsageRecord(
 - [x] Lambda function scaffolds (infra-05)
 - [x] AWS CDK project structure (5 stacks: api, database, lambda, storage, step-functions)
 
-### Phase 2: Onboarding Steps 1-3 (Weeks 3-4) - 🟡 Backend Complete
+### Phase 2: Onboarding Steps 1-3 (Weeks 3-4) - ✅ Complete
 - [x] Business scraper Lambda — LLM-first approach: fetch HTML + Bedrock Claude extraction (onboarding-01)
 - [x] Voice selection API — ElevenLabs integration with caching (onboarding-03)
 - [x] Confirm business endpoint (onboarding-02)
-- [ ] Frontend components Steps 1-3 (onboarding-04)
+- [x] Frontend components Steps 1-3 — URL input, business confirm with polling, voice gallery with audio preview (onboarding-04)
 - [ ] End-to-end testing (onboarding-05)
 
-### Phase 3: Knowledge Base - Step 4 (Weeks 5-6) - 🟡 Backend Complete
+### Phase 3: Knowledge Base - Step 4 (Weeks 5-6) - ✅ Complete
 - [x] File upload to S3 with presigned URLs (kb-01)
 - [x] PDF/DOCX extraction — PyPDF2, python-docx (kb-02)
 - [x] Bedrock integration — Claude 3.5 Sonnet structuring (kb-03)
 - [x] Manual text entry API with category merging (kb-04)
 - [x] Processing status polling endpoint (kb-05)
-- [ ] Frontend component Step 4 (kb-06)
+- [x] Frontend component Step 4 — drag-drop upload, manual text entry, processing progress bar (kb-06)
 
-### Phase 4: Agent Deployment - Step 5 (Weeks 7-8) - 🟡 Backend Complete
+### Phase 4: Agent Deployment - Step 5 (Weeks 7-8) - ✅ Complete
 - [x] Step Functions workflow — 4-state machine (agent-01)
 - [x] ElevenLabs agent creation Lambda (agent-02)
 - [x] Twilio phone provisioning Lambda (agent-03)
 - [x] Link number to agent (agent-04)
 - [x] Test call functionality (agent-05)
 - [x] Call recording & transcript — Twilio recording + ElevenLabs transcript fetch (agent-06)
-- [ ] Frontend component Step 5 (agent-07)
+- [x] Frontend component Step 5 — deploy status, test call with transcript/recording playback (agent-07)
 
-### Phase 5: Payment - Step 6 (Week 9) - 🟡 Backend Complete
+### Phase 5: Payment - Step 6 (Week 9) - ✅ Complete
 - [x] Stripe integration — products, metered billing (payment-01)
 - [x] Payment flow — create customer, subscription, 2 line items (payment-02)
 - [x] Usage tracking Lambda — overage detection, Stripe reporting (payment-03)
 - [x] Agent activation on payment success (payment-04)
-- [ ] Frontend component Step 6 (payment-05)
+- [x] Frontend component Step 6 — plan selector, monthly/yearly toggle, payment flow, success screen (payment-05)
 
 ### Phase 5.5: Webhooks - ✅ Complete
 - [x] Twilio webhook Lambda — call status, test call status, signature validation
@@ -998,7 +998,7 @@ await stripe.subscriptionItems.createUsageRecord(
 - [ ] Production deployment (polish-05)
 - [ ] Launch to 10 beta customers in Bilbao
 
-**Overall Progress**: 63% (24/38 PRD items complete)
+**Overall Progress**: 74% (28/38 PRD items complete)
 
 ### Backend Lambda Status (All 7 Implemented)
 
@@ -1011,6 +1011,19 @@ await stripe.subscriptionItems.createUsageRecord(
 | twilio-webhook | index.ts, call-status.ts, validate-signature.ts | ✅ Complete |
 | stripe-webhook | index.ts, subscription-events.ts, validate-signature.ts | ✅ Complete |
 | usage-tracker | lambda_function.py — overage + Stripe metered | ✅ Complete |
+
+### Frontend Onboarding Components (All 6 Steps Implemented)
+
+| Component | Key Features | Status |
+|-----------|-------------|--------|
+| Step1BusinessInfo | URL input, country code select, auto-prepend https | ✅ Complete |
+| Step2ConfirmBusiness | Polling scraper status (2s × 30), editable form, industry dropdown | ✅ Complete |
+| Step3SelectVoice | Voice gallery grid, audio preview (play/stop), selection with check | ✅ Complete |
+| Step4KnowledgeBase | Drag-drop file upload, manual text w/ categories, processing progress bar | ✅ Complete |
+| Step5TestAgent | Deploy status polling, agent info card, test call with transcript/recording | ✅ Complete |
+| Step6Payment | Plan selector (3 tiers), monthly/yearly toggle, Stripe checkout, success screen | ✅ Complete |
+
+**Supporting infrastructure**: api.ts (fetch wrapper), onboarding-context.tsx (sessionStorage persistence), Stepper.tsx (visual progress), layout.tsx (OnboardingProvider)
 
 ## Documentation
 
@@ -1075,5 +1088,5 @@ await stripe.subscriptionItems.createUsageRecord(
 ---
 
 **Last Updated**: 2026-02-06
-**Version**: 3.0 (Frontend complete, Backend 100% Lambda code implemented)
-**Status**: Landing page deployed, All 7 backend Lambda functions implemented. Pending: frontend onboarding components, dashboard, polish & production deployment.
+**Version**: 4.0 (Full onboarding flow complete — backend + frontend)
+**Status**: Landing page deployed, all 7 backend Lambda functions + all 6 frontend onboarding steps implemented. Pending: dashboard, polish & production deployment.

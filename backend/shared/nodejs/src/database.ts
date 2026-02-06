@@ -1,4 +1,4 @@
-import { Pool, PoolClient, QueryResult } from 'pg';
+import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
 import { SecretsManager } from 'aws-sdk';
 
 /**
@@ -117,7 +117,7 @@ export async function getPool(): Promise<Pool> {
 /**
  * Execute a query with automatic connection management
  */
-export async function query<T = any>(
+export async function query<T extends QueryResultRow = any>(
   text: string,
   params?: any[]
 ): Promise<QueryResult<T>> {

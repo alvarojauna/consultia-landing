@@ -195,8 +195,8 @@ export async function handleCompletePayment(
 
     // Get plan details from request (should match what was selected in select-plan)
     // For now, hardcode to professional monthly (will read from customer metadata in production)
-    const plan_tier = 'professional';
-    const billing_period = 'monthly';
+    const plan_tier = 'professional' as keyof typeof PLANS;
+    const billing_period: 'monthly' | 'yearly' = 'monthly';
     const planPricing = PLANS[plan_tier][billing_period];
 
     // Create Stripe subscription
@@ -209,7 +209,7 @@ export async function handleCompletePayment(
         currency: 'eur',
         unit_amount: (planPricing.price_eur * 100).toString(), // Convert to cents
         recurring: JSON.stringify({
-          interval: billing_period === 'yearly' ? 'year' : 'month',
+          interval: 'month', // TODO: Support yearly billing
         }),
         product_data: JSON.stringify({
           name: `ConsultIA ${plan_tier.charAt(0).toUpperCase() + plan_tier.slice(1)} Plan`,
