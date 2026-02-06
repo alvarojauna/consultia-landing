@@ -1,0 +1,267 @@
+{
+  "name": "ConsultIA - Landing Page",
+  "description": "Clon de Trillet.ai adaptado al mercado español. Landing page profesional para recepcionista AI que atiende llamadas 24/7 en español con números +34.",
+  "progress": {
+    "completed": 13,
+    "total": 17,
+    "percentage": 76
+  },
+  "items": [
+    {
+      "id": "setup-01",
+      "category": "setup",
+      "description": "Inicializar proyecto Next.js con TypeScript + Tailwind",
+      "steps": [
+        "Ejecutar npx create-next-app@latest frontend --typescript --tailwind --app",
+        "Instalar dependencias: @headlessui/react, framer-motion, @heroicons/react",
+        "Configurar package.json con scripts de desarrollo y build",
+        "Crear estructura de carpetas: components/, pages/, styles/, utils/",
+        "Verificar que npm run dev funciona"
+      ],
+      "priority": "high",
+      "passes": true,
+      "progress": 100
+    },
+    {
+      "id": "setup-02",
+      "category": "setup",
+      "description": "Configurar Tailwind y diseño base",
+      "steps": [
+        "Crear tailwind.config.js con paleta de colores personalizada (basada en Trillet)",
+        "Definir colores: primary (azul tech), secondary (gris), accent (verde para CTAs)",
+        "Configurar tipografía (Inter o similar sans-serif profesional)",
+        "Crear archivo de estilos globales con resets y utilities",
+        "Testear sistema de diseño con componente de prueba"
+      ],
+      "priority": "high",
+      "passes": true,
+      "progress": 100
+    },
+    {
+      "id": "setup-03",
+      "category": "setup",
+      "description": "Setup Git y estructura de proyecto",
+      "steps": [
+        "Inicializar repositorio git: git init",
+        "Crear .gitignore con node_modules, .next, .env.local",
+        "Crear primer commit: chore: initialize Next.js project",
+        "Verificar estructura de carpetas completa",
+        "Documentar comandos en README.md"
+      ],
+      "priority": "medium",
+      "passes": true,
+      "progress": 100
+    },
+    {
+      "id": "arch-01",
+      "category": "architecture",
+      "description": "Diseñar sistema de componentes",
+      "steps": [
+        "Crear components/Layout.tsx (wrapper principal)",
+        "Crear components/Navigation.tsx (header responsive)",
+        "Crear estructura base de cada componente (Hero, Features, Pricing, FAQ, Footer)",
+        "Definir props TypeScript interfaces para cada componente",
+        "Crear página de prueba con todos los componentes"
+      ],
+      "priority": "high",
+      "passes": true,
+      "progress": 100
+    },
+    {
+      "id": "arch-02",
+      "category": "architecture",
+      "description": "Definir paleta y tipografía final",
+      "steps": [
+        "Analizar paleta de Trillet (azules/grises profesionales)",
+        "Adaptar a identidad española: colores más cálidos/mediterráneos",
+        "Configurar fuentes en next.config.js (Google Fonts: Inter)",
+        "Crear guía de estilos en styles/design-system.css",
+        "Documentar sistema de colores y tipografía"
+      ],
+      "priority": "medium",
+      "passes": true,
+      "progress": 100
+    },
+    {
+      "id": "arch-03",
+      "category": "architecture",
+      "description": "Layout responsive mobile-first",
+      "steps": [
+        "Definir breakpoints: mobile (375px), tablet (768px), desktop (1440px)",
+        "Crear grid system reutilizable con Tailwind",
+        "Implementar navegación hamburger para mobile",
+        "Testear en Chrome DevTools con diferentes dispositivos",
+        "Verificar que todos los componentes son responsive"
+      ],
+      "priority": "high",
+      "passes": true,
+      "progress": 100
+    },
+    {
+      "id": "func-01",
+      "category": "functional",
+      "description": "Hero Section",
+      "steps": [
+        "Crear components/Hero.tsx con headline y value prop",
+        "Implementar CTA principal: Empezar en 5 minutos",
+        "Añadir secondary CTA: Ver demo",
+        "Añadir imagen/video hero (placeholder o stock)",
+        "Añadir animación de entrada (Framer Motion fade-in)"
+      ],
+      "priority": "high",
+      "passes": true,
+      "progress": 100
+    },
+    {
+      "id": "func-02",
+      "category": "functional",
+      "description": "Features Section",
+      "steps": [
+        "Crear components/Features.tsx con grid de 8 features",
+        "Implementar cards con iconos (Heroicons)",
+        "Copy en español: 24/7, agenda, filtra spam, RGPD, personalizado, +34, multiidioma, 5min",
+        "Añadir hover effects en cards",
+        "Responsive: 1 columna mobile, 2 tablet, 4 desktop"
+      ],
+      "priority": "high",
+      "passes": true,
+      "progress": 100
+    },
+    {
+      "id": "func-03",
+      "category": "functional",
+      "description": "Industries Section",
+      "steps": [
+        "Crear dropdown navigation con Headless UI",
+        "Listar verticales: clínicas, veterinarias, peluquerías, talleres, restaurantes, despachos, inmobiliarias, construcción",
+        "Crear páginas /industries/[slug] para cada vertical",
+        "Content específico por industria con ejemplos de uso",
+        "SEO: Meta tags únicos por vertical"
+      ],
+      "priority": "medium",
+      "passes": true,
+      "progress": 100
+    },
+    {
+      "id": "func-04",
+      "category": "functional",
+      "description": "Pricing Section",
+      "steps": [
+        "Crear components/Pricing.tsx con 3 planes",
+        "Plan Starter (29€), Profesional (79€, destacado), Empresa (199€)",
+        "Destacar Más popular en plan Profesional",
+        "CTA por plan: Empezar ahora",
+        "Añadir nota de garantía 30 días"
+      ],
+      "priority": "high",
+      "passes": true,
+      "progress": 100
+    },
+    {
+      "id": "func-05",
+      "category": "functional",
+      "description": "FAQ Section",
+      "steps": [
+        "Crear components/FAQ.tsx con Disclosure de Headless UI",
+        "Implementar 10 preguntas expandibles",
+        "Copy en español (configuración, transferir, RGPD, minutos, número actual, calendario, Doctoralia, voz, permanencia, soporte)",
+        "Animación smooth al expandir/colapsar",
+        "SEO: Implementar Schema.org FAQPage"
+      ],
+      "priority": "high",
+      "passes": true,
+      "progress": 100
+    },
+    {
+      "id": "func-06",
+      "category": "functional",
+      "description": "Footer Section",
+      "steps": [
+        "Crear components/Footer.tsx con links organizados",
+        "Secciones: Producto, Industrias, Recursos, Legal, Contacto",
+        "Información de empresa: Bilbao, España, email soporte",
+        "Compliance badges: RGPD, ISO (placeholder)",
+        "Social links: LinkedIn, Twitter (opcional)"
+      ],
+      "priority": "medium",
+      "passes": true,
+      "progress": 100
+    },
+    {
+      "id": "polish-01",
+      "category": "polish",
+      "description": "SEO Optimization",
+      "steps": [
+        "Crear components/SEO.tsx con meta tags dinámicos",
+        "Implementar Schema.org: SoftwareApplication, Organization, FAQPage",
+        "OpenGraph tags para social sharing (imagen og:image 1200x630)",
+        "Sitemap.xml y robots.txt",
+        "Verificar con Google Search Console (cuando esté deployed)"
+      ],
+      "priority": "high",
+      "passes": false,
+      "progress": 0
+    },
+    {
+      "id": "polish-02",
+      "category": "polish",
+      "description": "Analytics Setup",
+      "steps": [
+        "Decidir: Plausible (privacy-first) o Google Analytics 4",
+        "Crear cuenta y obtener tracking ID",
+        "Implementar script en _app.tsx o layout.tsx",
+        "Configurar eventos: CTA clicks, form submissions",
+        "Testear que funciona con extensión (Plausible o GA Debugger)"
+      ],
+      "priority": "medium",
+      "passes": false,
+      "progress": 0
+    },
+    {
+      "id": "polish-03",
+      "category": "polish",
+      "description": "Animaciones y micro-interacciones",
+      "steps": [
+        "Añadir Framer Motion a components clave (Hero, Features)",
+        "Implementar scroll animations (fade-in on scroll)",
+        "Hover effects en botones y cards",
+        "Loading states para forms",
+        "Verificar performance (no más de 60fps)"
+      ],
+      "priority": "low",
+      "passes": true,
+      "progress": 100
+    },
+    {
+      "id": "polish-04",
+      "category": "polish",
+      "description": "Performance Optimization",
+      "steps": [
+        "Optimizar imágenes con next/image (lazy loading automático)",
+        "Minimizar bundle size: analizar con @next/bundle-analyzer",
+        "Implementar fonts con next/font (self-hosted)",
+        "Lighthouse audit: target >90 en performance, accessibility, SEO",
+        "Web Vitals: LCP <2.5s, FID <100ms, CLS <0.1"
+      ],
+      "priority": "high",
+      "passes": false,
+      "progress": 0
+    },
+    {
+      "id": "deploy-01",
+      "category": "reliability",
+      "description": "Deploy a AWS Amplify",
+      "steps": [
+        "Crear cuenta AWS Amplify y conectar repositorio Git",
+        "Configurar build settings para Next.js",
+        "Deploy automático al hacer push a main",
+        "Configurar dominio custom: consultia.es (Route 53)",
+        "SSL automático (certificado de AWS)",
+        "Verificar que todo funciona en producción"
+      ],
+      "priority": "high",
+      "passes": false,
+      "progress": 0
+    }
+  ]
+}
