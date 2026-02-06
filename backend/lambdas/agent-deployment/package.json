@@ -1,0 +1,21 @@
+{
+  "name": "consultia-agent-deployment",
+  "version": "1.0.0",
+  "description": "Lambda functions for agent deployment (ElevenLabs + Twilio)",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w"
+  },
+  "dependencies": {
+    "consultia-shared-nodejs": "file:../../shared/nodejs",
+    "axios": "^1.7.2",
+    "twilio": "^5.3.1",
+    "aws-sdk": "^2.1691.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^20.14.9",
+    "typescript": "^5.5.3"
+  }
+}

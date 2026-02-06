@@ -1,265 +1,579 @@
 {
-  "name": "ConsultIA - Landing Page",
-  "description": "Clon de Trillet.ai adaptado al mercado español. Landing page profesional para recepcionista AI que atiende llamadas 24/7 en español con números +34.",
+  "name": "ConsultIA - Backend Agent Creation System",
+  "description": "Sistema backend completo para creación multi-tenant de agentes AI con ElevenLabs, Twilio y Stripe. Incluye flujo de onboarding de 6 pasos con subida de base de conocimiento, despliegue de agente y llamada de prueba antes del pago.",
   "progress": {
-    "completed": 13,
-    "total": 17,
-    "percentage": 76
+    "completed": 20,
+    "total": 38,
+    "percentage": 53
   },
   "items": [
     {
-      "id": "setup-01",
-      "category": "setup",
-      "description": "Inicializar proyecto Next.js con TypeScript + Tailwind",
+      "id": "infra-01",
+      "category": "infrastructure",
+      "description": "AWS Account Setup & IAM",
       "steps": [
-        "Ejecutar npx create-next-app@latest frontend --typescript --tailwind --app",
-        "Instalar dependencias: @headlessui/react, framer-motion, @heroicons/react",
-        "Configurar package.json con scripts de desarrollo y build",
-        "Crear estructura de carpetas: components/, pages/, styles/, utils/",
-        "Verificar que npm run dev funciona"
+        "Crear cuenta AWS para ConsultIA (o usar existente)",
+        "Configurar IAM roles para Lambda, Step Functions, API Gateway",
+        "Crear VPC, subnets, security groups para region eu-west-1",
+        "Setup AWS CDK project structure en backend/infra/",
+        "Configurar AWS CLI y credenciales locales"
+      ],
+      "priority": "critical",
+      "passes": true,
+      "progress": 100
+    },
+    {
+      "id": "infra-02",
+      "category": "infrastructure",
+      "description": "Database Setup (Aurora + DynamoDB)",
+      "steps": [
+        "Desplegar Aurora Serverless v2 PostgreSQL 15 en eu-west-1",
+        "Configurar capacidad: 0.5 ACU min, 16 ACU max",
+        "Crear migrations para 13 tablas (enterprises, customers, agents, etc.)",
+        "Crear DynamoDB tables: call_logs (PK: customer_id, SK: timestamp), agent_sessions",
+        "Configurar backups automáticos y encryption at-rest"
+      ],
+      "priority": "critical",
+      "passes": true,
+      "progress": 100
+    },
+    {
+      "id": "infra-03",
+      "category": "infrastructure",
+      "description": "S3 Buckets & CloudFront",
+      "steps": [
+        "Crear bucket consultia-knowledge-bases en eu-west-1",
+        "Configurar lifecycle policy: eliminar archivos después de 365 días",
+        "Crear bucket consultia-call-recordings con lifecycle: Glacier 90 días, delete 7 años",
+        "Configurar encryption SSE-S3 para knowledge-bases, SSE-KMS para recordings",
+        "Setup CloudFront distributions para acceso más rápido"
       ],
       "priority": "high",
       "passes": true,
       "progress": 100
     },
     {
-      "id": "setup-02",
-      "category": "setup",
-      "description": "Configurar Tailwind y diseño base",
+      "id": "infra-04",
+      "category": "infrastructure",
+      "description": "Cognito User Pools",
       "steps": [
-        "Crear tailwind.config.js con paleta de colores personalizada (basada en Trillet)",
-        "Definir colores: primary (azul tech), secondary (gris), accent (verde para CTAs)",
-        "Configurar tipografía (Inter o similar sans-serif profesional)",
-        "Crear archivo de estilos globales con resets y utilities",
-        "Testear sistema de diseño con componente de prueba"
+        "Crear Cognito User Pool: consultia-customers",
+        "Configurar password policy: min 8 chars, uppercase, lowercase, number",
+        "Configurar email verification y MFA opcional",
+        "Añadir custom attributes: business_name, phone_number",
+        "Setup Hosted UI para login/register"
       ],
       "priority": "high",
       "passes": true,
       "progress": 100
     },
     {
-      "id": "setup-03",
-      "category": "setup",
-      "description": "Setup Git y estructura de proyecto",
+      "id": "infra-05",
+      "category": "infrastructure",
+      "description": "API Gateway & Lambda Scaffold",
       "steps": [
-        "Inicializar repositorio git: git init",
-        "Crear .gitignore con node_modules, .next, .env.local",
-        "Crear primer commit: chore: initialize Next.js project",
-        "Verificar estructura de carpetas completa",
-        "Documentar comandos en README.md"
+        "Crear REST API en API Gateway: https://api.consultia.es",
+        "Configurar Cognito Authorizer para rutas protegidas",
+        "Crear 7 placeholder Lambda functions (Node.js 20.x, Python 3.12)",
+        "Configurar CloudWatch Log Groups para cada Lambda",
+        "Setup throttling: 1000 req/sec, burst 2000"
+      ],
+      "priority": "critical",
+      "passes": true,
+      "progress": 100
+    },
+    {
+      "id": "onboarding-01",
+      "category": "onboarding",
+      "description": "Business Information Scraper",
+      "steps": [
+        "Crear Lambda business-scraper (Python 3.12, 1GB, 60s timeout)",
+        "Implementar web scraping con BeautifulSoup o Playwright",
+        "Extraer: name, address, services, hours, contact info",
+        "Store en business_info table con status 'pending_confirmation'",
+        "Manejar errores: sitios protegidos, timeouts, SSL issues"
+      ],
+      "priority": "high",
+      "passes": false,
+      "progress": 0
+    },
+    {
+      "id": "onboarding-02",
+      "category": "onboarding",
+      "description": "Confirm Business API",
+      "steps": [
+        "Crear endpoint GET /onboarding/:customerId/business-status",
+        "Crear endpoint POST /onboarding/:customerId/confirm-business",
+        "Permitir edición de datos scrapeados (nombre, dirección, servicios, horarios)",
+        "Actualizar business_info.confirmed = true",
+        "Actualizar customers.onboarding_step = 2"
+      ],
+      "priority": "high",
+      "passes": true,
+      "progress": 100
+    },
+    {
+      "id": "onboarding-03",
+      "category": "onboarding",
+      "description": "ElevenLabs Voice Selection",
+      "steps": [
+        "Crear endpoint GET /voices que consulta ElevenLabs API",
+        "Cachear respuesta en API Gateway (5 min TTL)",
+        "Retornar voice catalog: voice_id, name, preview_url",
+        "Crear endpoint POST /onboarding/:customerId/select-voice",
+        "Almacenar voice_id en customers table"
+      ],
+      "priority": "high",
+      "passes": true,
+      "progress": 100
+    },
+    {
+      "id": "onboarding-04",
+      "category": "onboarding",
+      "description": "Frontend Components (Steps 1-3)",
+      "steps": [
+        "Crear frontend/components/onboarding/Step1BusinessInfo.tsx",
+        "Crear frontend/components/onboarding/Step2ConfirmBusiness.tsx",
+        "Crear frontend/components/onboarding/Step3SelectVoice.tsx",
+        "Implementar loading states y error handling",
+        "Añadir navegación entre pasos con stepper visual"
+      ],
+      "priority": "high",
+      "passes": false,
+      "progress": 0
+    },
+    {
+      "id": "onboarding-05",
+      "category": "onboarding",
+      "description": "Testing Steps 1-3",
+      "steps": [
+        "Test end-to-end: ingresar website → scraping → confirmar → seleccionar voz",
+        "Test edge cases: URLs inválidas, scraping fallido, timeout",
+        "Verificar data flows correctamente a database",
+        "Test con sitios reales: clínica veterinaria, peluquería, taller",
+        "Documentar casos de error y manejo"
+      ],
+      "priority": "medium",
+      "passes": false,
+      "progress": 0
+    },
+    {
+      "id": "kb-01",
+      "category": "knowledge_base",
+      "description": "File Upload API",
+      "steps": [
+        "Crear endpoint POST /onboarding/:customerId/knowledge-base/upload",
+        "Implementar multipart/form-data handling",
+        "Generar presigned S3 URL para upload directo desde frontend",
+        "Validar: max 10MB, MIME types (PDF, DOCX, TXT)",
+        "Insertar registro en kb_sources con status 'pending'"
+      ],
+      "priority": "high",
+      "passes": true,
+      "progress": 100
+    },
+    {
+      "id": "kb-02",
+      "category": "knowledge_base",
+      "description": "PDF/DOCX Text Extraction",
+      "steps": [
+        "Crear Lambda knowledge-base-processor (Python 3.12, 3GB, 900s timeout)",
+        "Instalar PyPDF2 para extracción de PDFs",
+        "Instalar python-docx para extracción de DOCX",
+        "Trigger vía SQS message al subir archivo a S3",
+        "Manejar PDFs encriptados, archivos corruptos"
+      ],
+      "priority": "high",
+      "passes": true,
+      "progress": 100
+    },
+    {
+      "id": "kb-03",
+      "category": "knowledge_base",
+      "description": "Bedrock Integration",
+      "steps": [
+        "Configurar boto3 client para Bedrock en eu-west-1",
+        "Crear prompt template para estructurar texto extraído",
+        "Invocar Claude 3.5 Sonnet (anthropic.claude-3-5-sonnet-20241022-v2:0)",
+        "Parsear JSON response: services, faqs, policies, hours, contacts",
+        "Almacenar structured_data en knowledge_bases table (JSONB column)"
+      ],
+      "priority": "high",
+      "passes": true,
+      "progress": 100
+    },
+    {
+      "id": "kb-04",
+      "category": "knowledge_base",
+      "description": "Manual Text Entry API",
+      "steps": [
+        "Crear endpoint POST /onboarding/:customerId/knowledge-base/text",
+        "Permitir categorización: policies, faqs, services, etc.",
+        "Merge con structured_data existente en knowledge_bases",
+        "Actualizar knowledge_bases.updated_at timestamp",
+        "Retornar preview de structured_data actualizado"
       ],
       "priority": "medium",
       "passes": true,
       "progress": 100
     },
     {
-      "id": "arch-01",
-      "category": "architecture",
-      "description": "Diseñar sistema de componentes",
+      "id": "kb-05",
+      "category": "knowledge_base",
+      "description": "Processing Status Polling",
       "steps": [
-        "Crear components/Layout.tsx (wrapper principal)",
-        "Crear components/Navigation.tsx (header responsive)",
-        "Crear estructura base de cada componente (Hero, Features, Pricing, FAQ, Footer)",
-        "Definir props TypeScript interfaces para cada componente",
-        "Crear página de prueba con todos los componentes"
-      ],
-      "priority": "high",
-      "passes": true,
-      "progress": 100
-    },
-    {
-      "id": "arch-02",
-      "category": "architecture",
-      "description": "Definir paleta y tipografía final",
-      "steps": [
-        "Analizar paleta de Trillet (azules/grises profesionales)",
-        "Adaptar a identidad española: colores más cálidos/mediterráneos",
-        "Configurar fuentes en next.config.js (Google Fonts: Inter)",
-        "Crear guía de estilos en styles/design-system.css",
-        "Documentar sistema de colores y tipografía"
+        "Crear endpoint GET /onboarding/:customerId/knowledge-base/status",
+        "Retornar: status (pending/processing/complete/error), progress %, total_sources",
+        "Implementar WebSocket API para updates real-time (opcional)",
+        "Fallback a HTTP polling cada 2 segundos desde frontend",
+        "Manejar timeout después de 15 minutos"
       ],
       "priority": "medium",
       "passes": true,
       "progress": 100
     },
     {
-      "id": "arch-03",
-      "category": "architecture",
-      "description": "Layout responsive mobile-first",
+      "id": "kb-06",
+      "category": "knowledge_base",
+      "description": "Frontend Component (Step 4)",
       "steps": [
-        "Definir breakpoints: mobile (375px), tablet (768px), desktop (1440px)",
-        "Crear grid system reutilizable con Tailwind",
-        "Implementar navegación hamburger para mobile",
-        "Testear en Chrome DevTools con diferentes dispositivos",
-        "Verificar que todos los componentes son responsive"
+        "Crear frontend/components/onboarding/Step4KnowledgeBase.tsx",
+        "Implementar drag & drop file upload (react-dropzone)",
+        "Añadir manual text editor (Textarea con categorías)",
+        "Mostrar processing status con progress bar",
+        "Preview de structured_data extraído"
+      ],
+      "priority": "high",
+      "passes": false,
+      "progress": 0
+    },
+    {
+      "id": "agent-01",
+      "category": "agent_deployment",
+      "description": "Step Functions Workflow",
+      "steps": [
+        "Crear Step Functions State Machine: DeployAgentWorkflow",
+        "Definir 4 estados: CreateElevenLabsAgent, ProvisionTwilioNumber, LinkNumberToAgent, UpdateDatabase",
+        "Configurar error handling con retries (3x con exponential backoff)",
+        "Setup CloudWatch logging para debugging",
+        "Deploy state machine definition en backend/step-functions/"
       ],
       "priority": "high",
       "passes": true,
       "progress": 100
     },
     {
-      "id": "func-01",
-      "category": "functional",
-      "description": "Hero Section",
+      "id": "agent-02",
+      "category": "agent_deployment",
+      "description": "ElevenLabs Agent Creation",
       "steps": [
-        "Crear components/Hero.tsx con headline y value prop",
-        "Implementar CTA principal: Empezar en 5 minutos",
-        "Añadir secondary CTA: Ver demo",
-        "Añadir imagen/video hero (placeholder o stock)",
-        "Añadir animación de entrada (Framer Motion fade-in)"
+        "Crear Lambda agent-deployment (Node.js 20.x, 512MB, 60s timeout)",
+        "Implementar llamada a POST https://api.elevenlabs.io/v1/convai/agents",
+        "Generar system prompt con generateAgentPrompt(business, knowledge_base)",
+        "Configurar conversation_config: turn_timeout 10s, max_duration 1800s",
+        "Almacenar agent_id en agents table con status 'deploying'"
+      ],
+      "priority": "critical",
+      "passes": true,
+      "progress": 100
+    },
+    {
+      "id": "agent-03",
+      "category": "agent_deployment",
+      "description": "Twilio Phone Number Provisioning",
+      "steps": [
+        "Instalar twilio SDK en Lambda agent-deployment",
+        "Buscar números disponibles: availablePhoneNumbers('ES').local.list()",
+        "Comprar primer número disponible con incomingPhoneNumbers.create()",
+        "Configurar voiceUrl apuntando a ElevenLabs webhook",
+        "Almacenar en phone_numbers table: twilio_sid, phone_number, country_code '+34'"
+      ],
+      "priority": "critical",
+      "passes": true,
+      "progress": 100
+    },
+    {
+      "id": "agent-04",
+      "category": "agent_deployment",
+      "description": "Link Number to Agent",
+      "steps": [
+        "Crear Lambda link-number-agent (Node.js 20.x, 256MB, 10s timeout)",
+        "Actualizar phone_numbers.agent_id con agent_id creado",
+        "Configurar Twilio statusCallback: /webhooks/twilio/call-status",
+        "Verificar webhook connectivity con test request",
+        "Retornar success al Step Functions workflow"
       ],
       "priority": "high",
       "passes": true,
       "progress": 100
     },
     {
-      "id": "func-02",
-      "category": "functional",
-      "description": "Features Section",
+      "id": "agent-05",
+      "category": "agent_deployment",
+      "description": "Test Call Functionality",
       "steps": [
-        "Crear components/Features.tsx con grid de 8 features",
-        "Implementar cards con iconos (Heroicons)",
-        "Copy en español: 24/7, agenda, filtra spam, RGPD, personalizado, +34, multiidioma, 5min",
-        "Añadir hover effects en cards",
-        "Responsive: 1 columna mobile, 2 tablet, 4 desktop"
+        "Crear endpoint POST /onboarding/:customerId/test-call",
+        "Implementar Twilio outbound call con calls.create()",
+        "Configurar statusCallback específico: /webhooks/twilio/test-call-status/:customerId",
+        "Almacenar en test_calls table: call_sid, test_phone_number, status 'initiated'",
+        "Retornar call_sid al frontend"
       ],
       "priority": "high",
       "passes": true,
       "progress": 100
     },
     {
-      "id": "func-03",
-      "category": "functional",
-      "description": "Industries Section",
+      "id": "agent-06",
+      "category": "agent_deployment",
+      "description": "Call Recording & Transcript",
       "steps": [
-        "Crear dropdown navigation con Headless UI",
-        "Listar verticales: clínicas, veterinarias, peluquerías, talleres, restaurantes, despachos, inmobiliarias, construcción",
-        "Crear páginas /industries/[slug] para cada vertical",
-        "Content específico por industria con ejemplos de uso",
-        "SEO: Meta tags únicos por vertical"
+        "Configurar Twilio call recording (record: true en calls.create)",
+        "Crear Lambda twilio-webhook para recibir call status",
+        "Almacenar recording_url en test_calls table al finalizar llamada",
+        "Obtener transcript desde ElevenLabs (si disponible)",
+        "Calcular duration_seconds y actualizar test_calls"
       ],
       "priority": "medium",
-      "passes": true,
-      "progress": 100
+      "passes": false,
+      "progress": 0
     },
     {
-      "id": "func-04",
-      "category": "functional",
-      "description": "Pricing Section",
+      "id": "agent-07",
+      "category": "agent_deployment",
+      "description": "Frontend Component (Step 5)",
       "steps": [
-        "Crear components/Pricing.tsx con 3 planes",
-        "Plan Starter (29€), Profesional (79€, destacado), Empresa (199€)",
-        "Destacar Más popular en plan Profesional",
-        "CTA por plan: Empezar ahora",
-        "Añadir nota de garantía 30 días"
+        "Crear frontend/components/onboarding/Step5TestAgent.tsx",
+        "Mostrar deployment status (creating_agent, provisioning_number, complete)",
+        "Display: agent name, phone number, docs procesados, FAQs extraídas",
+        "Input: número de teléfono del usuario para recibir test call",
+        "Botón 'Recibir llamada de prueba' con loading state"
+      ],
+      "priority": "high",
+      "passes": false,
+      "progress": 0
+    },
+    {
+      "id": "payment-01",
+      "category": "payment",
+      "description": "Stripe Integration",
+      "steps": [
+        "Configurar Stripe SDK en Lambda stripe-webhook (Node.js 20.x, 256MB, 10s)",
+        "Crear productos en Stripe: Starter (29€), Professional (79€), Enterprise (199€)",
+        "Configurar metered billing: price_minutes_metered (€0.15 per minute over quota)",
+        "Crear endpoint POST /onboarding/:customerId/select-plan",
+        "Almacenar plan_tier en customers table"
       ],
       "priority": "high",
       "passes": true,
       "progress": 100
     },
     {
-      "id": "func-05",
-      "category": "functional",
-      "description": "FAQ Section",
+      "id": "payment-02",
+      "category": "payment",
+      "description": "Payment Flow",
       "steps": [
-        "Crear components/FAQ.tsx con Disclosure de Headless UI",
-        "Implementar 10 preguntas expandibles",
-        "Copy en español (configuración, transferir, RGPD, minutos, número actual, calendario, Doctoralia, voz, permanencia, soporte)",
-        "Animación smooth al expandir/colapsar",
-        "SEO: Implementar Schema.org FAQPage"
+        "Crear endpoint POST /onboarding/:customerId/create-payment-intent",
+        "Implementar Stripe.js Elements en frontend para card input",
+        "Crear Stripe customer: stripe.customers.create({ email, metadata })",
+        "Crear subscription con 2 line items: fixed price + metered",
+        "Configurar trial_period_days: 14 opcional"
       ],
       "priority": "high",
       "passes": true,
       "progress": 100
     },
     {
-      "id": "func-06",
-      "category": "functional",
-      "description": "Footer Section",
+      "id": "payment-03",
+      "category": "payment",
+      "description": "Usage Tracking",
       "steps": [
-        "Crear components/Footer.tsx con links organizados",
-        "Secciones: Producto, Industrias, Recursos, Legal, Contacto",
-        "Información de empresa: Bilbao, España, email soporte",
-        "Compliance badges: RGPD, ISO (placeholder)",
-        "Social links: LinkedIn, Twitter (opcional)"
+        "Crear Lambda usage-tracker (Python 3.12, 256MB, 15s timeout)",
+        "Trigger en Twilio webhook al finalizar llamada",
+        "Calcular call_duration_minutes con 3 decimales",
+        "Insertar en usage_records table: quantity, unit_price, total_cost",
+        "Reportar a Stripe: subscriptionItems.createUsageRecord()"
+      ],
+      "priority": "high",
+      "passes": false,
+      "progress": 0
+    },
+    {
+      "id": "payment-04",
+      "category": "payment",
+      "description": "Agent Activation",
+      "steps": [
+        "Crear endpoint POST /onboarding/:customerId/complete-payment",
+        "Actualizar agents.status = 'active' después de payment_succeeded",
+        "Actualizar customers.status = 'active', onboarding_status = 'complete'",
+        "Enviar email de confirmación con AWS SES",
+        "Retornar dashboard_url: /dashboard/:customerId"
+      ],
+      "priority": "high",
+      "passes": true,
+      "progress": 100
+    },
+    {
+      "id": "payment-05",
+      "category": "payment",
+      "description": "Frontend Component (Step 6)",
+      "steps": [
+        "Crear frontend/components/onboarding/Step6Payment.tsx",
+        "Mostrar plan selection: monthly/yearly toggle",
+        "Display pricing: Starter 29€, Professional 79€, Enterprise 199€",
+        "Integrar Stripe Elements para card input",
+        "Loading states durante payment, redirect a dashboard al completar"
+      ],
+      "priority": "high",
+      "passes": false,
+      "progress": 0
+    },
+    {
+      "id": "dashboard-01",
+      "category": "dashboard",
+      "description": "Dashboard Overview",
+      "steps": [
+        "Crear endpoint GET /dashboard/:customerId/overview",
+        "Retornar: agent status, call stats (total, duration, cost), current usage",
+        "Crear frontend/pages/dashboard/[customerId]/page.tsx",
+        "Display: agent info, phone number, quick stats",
+        "Links rápidos: settings, billing, call history"
       ],
       "priority": "medium",
-      "passes": true,
-      "progress": 100
+      "passes": false,
+      "progress": 0
+    },
+    {
+      "id": "dashboard-02",
+      "category": "dashboard",
+      "description": "Call History",
+      "steps": [
+        "Crear endpoint GET /dashboard/:customerId/calls con pagination",
+        "Query DynamoDB call_logs table (PK: customer_id, SK: timestamp)",
+        "Filtros: date range, status, duration, caller_number",
+        "Crear frontend/components/dashboard/CallHistory.tsx",
+        "Features: play recording, view transcript, export CSV"
+      ],
+      "priority": "medium",
+      "passes": false,
+      "progress": 0
+    },
+    {
+      "id": "dashboard-03",
+      "category": "dashboard",
+      "description": "Agent Settings",
+      "steps": [
+        "Crear endpoint PATCH /dashboard/:customerId/agent/settings",
+        "Permitir editar: system_prompt, knowledge_base",
+        "Añadir endpoint POST /dashboard/:customerId/agent/pause",
+        "Añadir endpoint POST /dashboard/:customerId/agent/resume",
+        "Crear frontend/components/dashboard/AgentSettings.tsx"
+      ],
+      "priority": "medium",
+      "passes": false,
+      "progress": 0
+    },
+    {
+      "id": "dashboard-04",
+      "category": "dashboard",
+      "description": "Billing & Invoices",
+      "steps": [
+        "Crear endpoint GET /dashboard/:customerId/billing",
+        "Retornar: current_period usage, minutes_included vs used",
+        "Fetch invoices desde Stripe: invoices.list({ customer })",
+        "Crear frontend/components/dashboard/Billing.tsx",
+        "Features: upgrade/downgrade plan, cancel subscription"
+      ],
+      "priority": "medium",
+      "passes": false,
+      "progress": 0
+    },
+    {
+      "id": "dashboard-05",
+      "category": "dashboard",
+      "description": "Webhooks & Monitoring",
+      "steps": [
+        "Implementar POST /webhooks/twilio/call-status handler",
+        "Implementar POST /webhooks/elevenlabs/call-events handler",
+        "Implementar POST /webhooks/stripe/events handler",
+        "Crear CloudWatch dashboards: call volume, errors, latency",
+        "Configurar alarms: failed deployments, API errors >1%, high DynamoDB latency"
+      ],
+      "priority": "medium",
+      "passes": false,
+      "progress": 0
     },
     {
       "id": "polish-01",
       "category": "polish",
-      "description": "SEO Optimization",
+      "description": "Error Handling",
       "steps": [
-        "Crear components/SEO.tsx con meta tags dinámicos",
-        "Implementar Schema.org: SoftwareApplication, Organization, FAQPage",
-        "OpenGraph tags para social sharing (imagen og:image 1200x630)",
-        "Sitemap.xml y robots.txt",
-        "Verificar con Google Search Console (cuando esté deployed)"
+        "Implementar graceful error messages en frontend",
+        "Añadir retry logic en Lambda functions (exponential backoff)",
+        "Configurar Dead Letter Queues (DLQ) para SQS",
+        "Crear error logging centralizado en CloudWatch",
+        "Documentar error codes y troubleshooting"
       ],
-      "priority": "high",
+      "priority": "medium",
       "passes": false,
       "progress": 0
     },
     {
       "id": "polish-02",
       "category": "polish",
-      "description": "Analytics Setup",
+      "description": "Security Hardening",
       "steps": [
-        "Decidir: Plausible (privacy-first) o Google Analytics 4",
-        "Crear cuenta y obtener tracking ID",
-        "Implementar script en _app.tsx o layout.tsx",
-        "Configurar eventos: CTA clicks, form submissions",
-        "Testear que funciona con extensión (Plausible o GA Debugger)"
+        "Implementar input validation en todos los endpoints",
+        "Configurar API Gateway throttling: 1000 req/sec, burst 2000",
+        "Mover secrets a AWS Secrets Manager (ElevenLabs, Twilio, Stripe keys)",
+        "Implementar rate limiting per customer_id",
+        "Audit de seguridad con AWS Security Hub"
       ],
-      "priority": "medium",
+      "priority": "high",
       "passes": false,
       "progress": 0
     },
     {
       "id": "polish-03",
       "category": "polish",
-      "description": "Animaciones y micro-interacciones",
+      "description": "Documentation",
       "steps": [
-        "Añadir Framer Motion a components clave (Hero, Features)",
-        "Implementar scroll animations (fade-in on scroll)",
-        "Hover effects en botones y cards",
-        "Loading states para forms",
-        "Verificar performance (no más de 60fps)"
+        "Generar API documentation con Swagger/OpenAPI",
+        "Crear developer onboarding guide en docs/",
+        "Documentar database schema con diagramas ER",
+        "Crear runbook para troubleshooting común",
+        "README completo con setup instructions"
       ],
-      "priority": "low",
-      "passes": true,
-      "progress": 100
-    },
-    {
-      "id": "polish-04",
-      "category": "polish",
-      "description": "Performance Optimization",
-      "steps": [
-        "Optimizar imágenes con next/image (lazy loading automático)",
-        "Minimizar bundle size: analizar con @next/bundle-analyzer",
-        "Implementar fonts con next/font (self-hosted)",
-        "Lighthouse audit: target >90 en performance, accessibility, SEO",
-        "Web Vitals: LCP <2.5s, FID <100ms, CLS <0.1"
-      ],
-      "priority": "high",
+      "priority": "medium",
       "passes": false,
       "progress": 0
     },
     {
-      "id": "deploy-01",
-      "category": "reliability",
-      "description": "Deploy a AWS Amplify",
+      "id": "polish-04",
+      "category": "polish",
+      "description": "Load Testing",
       "steps": [
-        "Crear cuenta AWS Amplify y conectar repositorio Git",
-        "Configurar build settings para Next.js",
-        "Deploy automático al hacer push a main",
-        "Configurar dominio custom: consultia.es (Route 53)",
-        "SSL automático (certificado de AWS)",
-        "Verificar que todo funciona en producción"
+        "Usar Artillery o k6 para simular 100 concurrent onboarding flows",
+        "Test Twilio concurrent call limits (default 10, request increase)",
+        "Verificar database performance bajo carga (Aurora auto-scaling)",
+        "Test ElevenLabs agent creation rate limits",
+        "Documentar bottlenecks y plan de escalado"
       ],
-      "priority": "high",
+      "priority": "medium",
+      "passes": false,
+      "progress": 0
+    },
+    {
+      "id": "polish-05",
+      "category": "polish",
+      "description": "Production Deployment",
+      "steps": [
+        "Deploy toda la infrastructure a AWS account de producción",
+        "Configurar custom domain: api.consultia.es (Route 53)",
+        "Configurar CloudWatch alarms y SNS notifications",
+        "Setup monitoring dashboard con métricas clave",
+        "Lanzar a primeros 10 beta customers en Bilbao"
+      ],
+      "priority": "critical",
       "passes": false,
       "progress": 0
     }

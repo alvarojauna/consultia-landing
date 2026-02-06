@@ -370,3 +370,690 @@ Se analizó sistemáticamente toda la estructura de Trillet.ai usando el navegad
 - Números +34, precios en €
 - Cumplimiento RGPD/LOPD
 - Industrias adaptadas al mercado local
+
+---
+
+# Backend Agent Creation System
+
+## Descripción
+
+Sistema backend completo para creación multi-tenant de agentes AI con ElevenLabs Conversational AI, Twilio Programmable Voice y Stripe Subscriptions. Permite a negocios crear su propio agente de recepcionista AI en 6 pasos: ingresar info del negocio → confirmar → seleccionar voz → subir base de conocimiento → probar agente → pagar.
+
+## Arquitectura Backend
+
+### Stack Tecnológico
+
+**Infraestructura**:
+- **Cloud Provider**: AWS (región eu-west-1 para RGPD)
+- **Compute**: AWS Lambda (serverless)
+- **API**: API Gateway REST + WebSocket
+- **Authentication**: Amazon Cognito User Pools
+- **IaC**: AWS CDK (TypeScript)
+
+**Databases**:
+- **Relational**: Aurora Serverless v2 PostgreSQL 15 (0.5-16 ACU auto-scaling)
+- **NoSQL**: DynamoDB (call logs, agent sessions)
+- **Storage**: S3 (knowledge bases, call recordings)
+
+**External Services**:
+- **AI Agent**: ElevenLabs Conversational AI API
+- **Telephony**: Twilio Programmable Voice
+- **Payments**: Stripe Subscriptions (metered billing)
+- **AI Processing**: Amazon Bedrock (Claude 3.5 Sonnet)
+
+### Lambda Functions (7 total)
+
+| Function | Runtime | Memory | Timeout | Trigger | Purpose |
+|----------|---------|--------|---------|---------|---------|
+| onboarding-api | Node.js 20.x | 512 MB | 30s | API Gateway | Handle onboarding endpoints |
+| business-scraper | Python 3.12 | 1 GB | 60s | API Gateway | Scrape business website |
+| agent-deployment | Node.js 20.x | 512 MB | 60s | Step Functions | Create ElevenLabs agents |
+| knowledge-base-processor | Python 3.12 | 3 GB | 900s | SQS | Extract PDF text, call Bedrock |
+| twilio-webhook | Node.js 20.x | 256 MB | 10s | API Gateway | Handle call status updates |
+| stripe-webhook | Node.js 20.x | 256 MB | 10s | API Gateway | Handle subscription events |
+| usage-tracker | Python 3.12 | 256 MB | 15s | Twilio webhook | Track minutes, report to Stripe |
+
+### Database Schema (PostgreSQL)
+
+**13 Core Tables**:
+
+```sql
+-- Multi-tenant hierarchy
+enterprises (1) → customers (N) → agents (1)
+                              → knowledge_bases (1) → kb_sources (N)
+                              → phone_numbers (N)
+                              → subscriptions (1) → usage_records (N)
+                              → test_calls (N)
+                              → business_info (1)
+```
+
+**Key Tables**:
+
+1. **enterprises** - ConsultIA enterprise account
+2. **customers** - Business customers (PYMEs)
+   - Fields: email, business_name, industry, onboarding_status, onboarding_step
+3. **agents** - ElevenLabs AI agents
+   - Fields: elevenlabs_agent_id, voice_id, system_prompt, webhook_url, status
+4. **knowledge_bases** - Structured knowledge (JSONB)
+   - Fields: structured_data, processing_status, total_sources
+5. **kb_sources** - Individual files (PDF, DOCX, TXT)
+   - Fields: source_type, s3_key, raw_text, processing_status
+6. **phone_numbers** - Twilio numbers
+   - Fields: phone_number, twilio_sid, country_code ('+34')
+7. **subscriptions** - Stripe subscriptions
+   - Fields: stripe_subscription_id, plan_tier, minutes_included, price_eur
+8. **usage_records** - Call minutes tracking
+   - Fields: quantity (minutes), unit_price_eur, total_cost_eur
+9. **test_calls** - Pre-payment test calls
+   - Fields: call_sid, test_phone_number, status, duration_seconds, recording_url
+
+### DynamoDB Tables (High-Throughput)
+
+**call_logs**:
+- Partition Key: `customer_id` (STRING)
+- Sort Key: `call_timestamp` (NUMBER, Unix timestamp)
+- TTL: 90 days (auto-delete)
+- Purpose: Store all call records with transcripts, recordings, summaries
+
+**agent_sessions**:
+- Partition Key: `agent_id` (STRING)
+- Sort Key: `session_timestamp` (NUMBER)
+- Purpose: Track conversation sessions for analytics
+
+### AWS Architecture Diagram
+
+```
+┌────────────────────────────────────────────────────┐
+│         FRONTEND (Next.js 14 - Amplify)            │
+│         https://consultia.es                       │
+└────────────────────────────────────────────────────┘
+                      ↓
+┌────────────────────────────────────────────────────┐
+│      API GATEWAY (REST + WebSocket)                │
+│      https://api.consultia.es                      │
+│      Authorization: Cognito JWT                    │
+└────────────────────────────────────────────────────┘
+                      ↓
+┌────────────────────────────────────────────────────┐
+│           AWS LAMBDA FUNCTIONS (7)                 │
+│  onboarding-api | business-scraper                 │
+│  agent-deployment | knowledge-base-processor       │
+│  twilio-webhook | stripe-webhook | usage-tracker   │
+└────────────────────────────────────────────────────┘
+                      ↓
+┌────────────────────────────────────────────────────┐
+│         STEP FUNCTIONS (Orchestration)             │
+│         DeployAgentWorkflow:                       │
+│         CreateAgent → ProvisionNumber →            │
+│         LinkToAgent → UpdateDB                     │
+└────────────────────────────────────────────────────┘
+                      ↓
+┌───────────────┐  ┌───────────┐  ┌──────────────┐
+│ Aurora PG 15  │  │ DynamoDB  │  │ S3 Buckets   │
+│ 13 tables     │  │ call_logs │  │ kb-files     │
+│ 0.5-16 ACU    │  │ sessions  │  │ recordings   │
+└───────────────┘  └───────────┘  └──────────────┘
+                      ↓
+┌────────────────────────────────────────────────────┐
+│         EXTERNAL INTEGRATIONS                      │
+│  ElevenLabs | Twilio | Stripe | Bedrock          │
+└────────────────────────────────────────────────────┘
+```
+
+## 6-Step Onboarding Flow (API Design)
+
+### Step 1: Business Information
+**Endpoint**: `POST /api/onboarding/business-info`
+
+**Request**:
+```json
+{
+  "website": "https://clinicaveterinaria.es",
+  "country_code": "+34"
+}
+```
+
+**Response**:
+```json
+{
+  "customer_id": "cust_abc123",
+  "scraping_job_id": "job_xyz"
+}
+```
+
+**Backend Process**:
+1. Create customer record in `customers` table
+2. Trigger `business-scraper` Lambda
+3. Scrape website with BeautifulSoup/Playwright
+4. Extract: name, address, services, hours, contact
+5. Store in `business_info` table with status "pending_confirmation"
+
+### Step 2: Confirm Business Details
+**Endpoint**: `POST /api/onboarding/:customerId/confirm-business`
+
+**Request**:
+```json
+{
+  "business_name": "Clínica Veterinaria San Sebastián",
+  "address": "Calle Mayor 123, 48001 Bilbao",
+  "services": ["Consultas", "Vacunación", "Cirugía"],
+  "hours": { "mon-fri": "09:00-20:00" }
+}
+```
+
+**Backend Process**:
+1. Update `business_info.confirmed = true`
+2. Update `customers.onboarding_step = 2`
+3. Proceed to voice selection
+
+### Step 3: Select Voice
+**Endpoint**: `POST /api/onboarding/:customerId/select-voice`
+
+**Request**:
+```json
+{
+  "voice_id": "21m00Tcm4TlvDq8ikWAM",
+  "voice_name": "Rachel"
+}
+```
+
+**Backend Process**:
+1. Fetch voices from ElevenLabs API (cached 5 min)
+2. Store `voice_id` in `customers` table
+3. Update `customers.onboarding_step = 3`
+
+### Step 4: Upload Knowledge Base ⭐ NEW
+**Endpoint**: `POST /api/onboarding/:customerId/knowledge-base/upload`
+
+**Request**: `multipart/form-data` with PDF/DOCX/TXT files
+
+**Backend Process**:
+1. Upload files to S3: `s3://consultia-knowledge-bases/{customer_id}/{timestamp}/`
+2. Insert records in `kb_sources` table (status: "pending")
+3. Send SQS message to trigger `knowledge-base-processor` Lambda
+4. Lambda extracts text with PyPDF2 (PDF) or python-docx (DOCX)
+5. Lambda calls **Amazon Bedrock Claude 3.5 Sonnet** to structure text:
+
+**Bedrock Prompt Template**:
+```python
+prompt = f"""
+Eres un asistente que estructura información de negocios.
+
+Negocio: {business_info['business_name']}
+Industria: {business_info['industry']}
+
+Analiza el siguiente texto y extrae información en JSON:
+
+{raw_text}
+
+Extrae:
+- "services": lista de servicios con precios
+- "faqs": preguntas frecuentes con respuestas
+- "policies": políticas de cancelación, pago, reembolso
+- "hours": horarios detallados
+- "contacts": emails, teléfonos
+- "locations": ubicaciones físicas
+
+Responde SOLO con JSON válido, sin markdown.
+"""
+
+# Invoke Bedrock
+response = bedrock.invoke_model(
+    modelId='anthropic.claude-3-5-sonnet-20241022-v2:0',
+    body=json.dumps({
+        'anthropic_version': 'bedrock-2023-05-31',
+        'max_tokens': 4096,
+        'temperature': 0.2,
+        'messages': [{'role': 'user', 'content': prompt}]
+    })
+)
+
+# Parse and store JSON in knowledge_bases.structured_data (JSONB column)
+```
+
+6. Store structured data in `knowledge_bases` table
+7. Update `kb_sources.processing_status = 'complete'`
+8. Update `customers.onboarding_step = 4`
+
+**Cost**: ~$0.03 per PDF document (5000 input tokens + 1000 output tokens)
+
+### Step 5: Deploy Agent & Test Call ⭐ NEW
+**Endpoint**: `POST /api/onboarding/:customerId/deploy-agent`
+
+**Backend Process** (AWS Step Functions Workflow):
+
+**State Machine: DeployAgentWorkflow**
+```json
+{
+  "StartAt": "CreateElevenLabsAgent",
+  "States": {
+    "CreateElevenLabsAgent": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:eu-west-1:xxx:function:agent-deployment",
+      "Next": "ProvisionTwilioNumber"
+    },
+    "ProvisionTwilioNumber": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:eu-west-1:xxx:function:agent-deployment",
+      "Next": "LinkNumberToAgent"
+    },
+    "LinkNumberToAgent": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:eu-west-1:xxx:function:link-number-agent",
+      "Next": "UpdateDatabase"
+    },
+    "UpdateDatabase": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:eu-west-1:xxx:function:update-agent-status",
+      "End": true
+    }
+  }
+}
+```
+
+**Step 5a: CreateElevenLabsAgent** (Lambda function)
+```javascript
+// Generate system prompt with business info + knowledge base
+const systemPrompt = `
+Eres la recepcionista virtual de ${customer.business_name}.
+
+TU MISIÓN:
+1. Responder preguntas sobre servicios, horarios, ubicación
+2. Agendar citas (pedir nombre, teléfono, fecha/hora)
+3. Filtrar spam (vendedores, encuestas)
+
+INFORMACIÓN DEL NEGOCIO:
+${JSON.stringify(knowledgeBase.structured_data, null, 2)}
+
+INSTRUCCIONES:
+- Sé amable, profesional y eficiente
+- Si no sabes algo, ofrece transferir a un humano
+- Para agendar, confirma todos los datos antes de finalizar
+- Si detectas spam, educadamente finaliza la llamada
+`;
+
+// Call ElevenLabs API
+const response = await axios.post(
+  'https://api.elevenlabs.io/v1/convai/agents',
+  {
+    name: `${customer.business_name} - Recepcionista`,
+    voice_id: customer.voice_id,
+    prompt: {
+      system: systemPrompt,
+      context: knowledgeBase.structured_data
+    },
+    language: 'es',
+    conversation_config: {
+      turn_timeout: 10,
+      max_duration: 1800
+    }
+  },
+  { headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY } }
+);
+
+// Store in agents table
+await db.agents.create({
+  agent_id: uuidv4(),
+  customer_id: customerId,
+  elevenlabs_agent_id: response.data.agent_id,
+  webhook_url: response.data.inbound_phone_call_webhook_url,
+  status: 'deploying'
+});
+```
+
+**Step 5b: ProvisionTwilioNumber** (Lambda function)
+```javascript
+// Search for available Spanish numbers
+const availableNumbers = await twilio.availablePhoneNumbers('ES')
+  .local
+  .list({ limit: 10 });
+
+// Purchase first available
+const purchasedNumber = await twilio.incomingPhoneNumbers.create({
+  phoneNumber: availableNumbers[0].phoneNumber,
+  voiceUrl: agent.webhook_url, // ElevenLabs webhook
+  voiceMethod: 'POST',
+  statusCallback: `https://api.consultia.es/webhooks/twilio/call-status`,
+  statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed']
+});
+
+// Store in phone_numbers table
+await db.phone_numbers.create({
+  phone_number: purchasedNumber.phoneNumber,
+  twilio_sid: purchasedNumber.sid,
+  country_code: '+34',
+  status: 'active'
+});
+```
+
+**Test Call**:
+**Endpoint**: `POST /api/onboarding/:customerId/test-call`
+
+```javascript
+// Twilio makes outbound call to user's phone
+const call = await twilio.calls.create({
+  to: testPhoneNumber,  // User's phone +34666777888
+  from: phoneNumber.phone_number,  // Agent's number +34944123456
+  url: agent.webhook_url,  // Routes to ElevenLabs agent
+  statusCallback: `https://api.consultia.es/webhooks/twilio/test-call-status/${customerId}`,
+  record: true  // Enable recording
+});
+
+// Store in test_calls table
+await db.test_calls.create({
+  call_sid: call.sid,
+  test_phone_number: testPhoneNumber,
+  status: 'initiated'
+});
+```
+
+**Real-Time Updates**: WebSocket connection to `wss://api.consultia.es/ws/test-call/:customerId` pushes call status updates.
+
+### Step 6: Payment
+**Endpoint**: `POST /api/onboarding/:customerId/complete-payment`
+
+**Request**:
+```json
+{
+  "plan_tier": "professional",
+  "billing_period": "monthly",
+  "stripe_payment_method_id": "pm_xxx"
+}
+```
+
+**Backend Process**:
+```javascript
+// Create Stripe customer
+const stripeCustomer = await stripe.customers.create({
+  email: customer.email,
+  metadata: { customer_id: customerId }
+});
+
+// Create subscription with 2 line items
+const subscription = await stripe.subscriptions.create({
+  customer: stripeCustomer.id,
+  items: [
+    {
+      price: 'price_professional_monthly',  // 79€/month fixed
+      quantity: 1
+    },
+    {
+      price: 'price_minutes_metered',  // €0.15/min over 300 minutes
+      quantity: 0  // Usage reported later
+    }
+  ],
+  trial_period_days: 14,
+  metadata: { customer_id: customerId, agent_id: agentId }
+});
+
+// Activate agent
+await db.agents.update({
+  where: { customer_id: customerId },
+  data: { status: 'active' }
+});
+
+// Update customer
+await db.customers.update({
+  where: { customer_id: customerId },
+  data: {
+    status: 'active',
+    onboarding_status: 'complete',
+    onboarding_step: 6
+  }
+});
+
+// Return dashboard URL
+return { dashboard_url: `/dashboard/${customerId}` };
+```
+
+## Multi-Tenant Architecture
+
+### Isolation Strategy
+- **Row-level security**: All queries filter by `customer_id` at application layer
+- **Database**: Foreign keys with `ON DELETE CASCADE` for data consistency
+- **API**: JWT tokens include `customer_id` claim, validated on every request
+
+### Resource Ownership Tracking
+```sql
+-- Every resource has customer_id foreign key
+agents.customer_id → customers.customer_id
+phone_numbers.customer_id → customers.customer_id
+knowledge_bases.customer_id → customers.customer_id
+subscriptions.customer_id → customers.customer_id
+
+-- DynamoDB: customer_id as partition key
+call_logs: PK = customer_id
+```
+
+### Cost Allocation
+All costs tracked per customer in `usage_records` table:
+- Call duration in minutes (3 decimals)
+- Unit price (€0.15 per minute over quota)
+- Total cost per call
+- Aggregated per billing period
+- Reported to Stripe for metered billing
+
+## Integration Details
+
+### ElevenLabs Conversational AI
+**API**: `https://api.elevenlabs.io/v1/convai/agents`
+**Authentication**: `xi-api-key` header
+**Key Features**:
+- Create agents with custom prompts
+- Spanish language support
+- Voice selection (25+ voices)
+- Webhook for call events
+- Conversation config (timeout, max duration)
+
+### Twilio Programmable Voice
+**API**: Twilio SDK for Node.js
+**Key Features**:
+- Search available +34 Spanish numbers
+- Purchase numbers programmatically
+- Configure voice webhooks (route to ElevenLabs)
+- Call status callbacks (initiated, ringing, answered, completed)
+- Call recordings storage
+- Outbound calls for testing
+
+### Stripe Subscriptions
+**API**: Stripe SDK for Node.js
+**Pricing Model**:
+- **Starter**: 29€/month (100 minutes included)
+- **Professional**: 79€/month (300 minutes included) ⭐ Most popular
+- **Enterprise**: 199€/month (1000 minutes included)
+- **Overage**: €0.15 per minute
+
+**Metered Billing**:
+```javascript
+// Report usage after each call
+await stripe.subscriptionItems.createUsageRecord(
+  subscriptionItemId,
+  {
+    quantity: callDurationMinutes,  // 3.117 minutes
+    timestamp: Math.floor(Date.now() / 1000),
+    action: 'increment'
+  }
+);
+```
+
+### Amazon Bedrock (Claude 3.5 Sonnet)
+**Model**: `anthropic.claude-3-5-sonnet-20241022-v2:0`
+**Region**: `eu-west-1` (GDPR compliance)
+**Purpose**: Extract structured knowledge from PDFs
+**Input**: Raw text from PDF (up to ~15,000 characters)
+**Output**: Structured JSON with services, FAQs, policies, hours, contacts
+**Cost**: $0.003 per 1K input tokens, $0.015 per 1K output tokens
+
+## Security & Compliance
+
+### Data Protection (RGPD/GDPR)
+- **Region**: All data in `eu-west-1` (Ireland, EU)
+- **Encryption**: At-rest (AES-256) and in-transit (TLS 1.2+)
+- **Data Retention**:
+  - Call recordings: 7 years (legal requirement)
+  - Call logs: 90 days (DynamoDB TTL auto-delete)
+  - Knowledge bases: Retained while customer active
+- **User Rights**: API endpoints for data export and deletion on request
+
+### Secrets Management
+- **AWS Secrets Manager**: Store ElevenLabs API key, Twilio credentials, Stripe secret key
+- **Lambda Environment Variables**: Only ARNs to Secrets Manager, no plaintext secrets
+- **Frontend**: No API keys exposed, all sensitive calls through backend
+
+### Input Validation
+- File uploads: Max 10MB, validate MIME types (PDF, DOCX, TXT only)
+- Phone numbers: Regex validation for E.164 format (+34XXXXXXXXX)
+- SQL injection: Use parameterized queries (Prisma ORM)
+- XSS: Sanitize all user inputs in frontend
+
+## Cost Estimates
+
+### Monthly Costs (10 Customers)
+
+**AWS Services**:
+| Service | Usage | Cost |
+|---------|-------|------|
+| Aurora Serverless v2 | 0.5-2 ACU avg | $50-200 |
+| DynamoDB | On-demand (10K reads/sec) | $25 |
+| Lambda | 100K invocations | $5 |
+| S3 | 100 GB storage | $3 |
+| API Gateway | 1M requests | $4 |
+| Cognito | 10 users | Free |
+| Step Functions | 100 executions | $0.30 |
+| CloudWatch | Logs | $10 |
+| **AWS Total** | | **$100-250** |
+
+**External Services**:
+| Service | Usage | Cost |
+|---------|-------|------|
+| ElevenLabs | 10 agents, 5000 min | $500-1000 |
+| Twilio Numbers | 10 x $1.15/mo | $11.50 |
+| Twilio Calls | 5000 min x $0.013/min | $65 |
+| Stripe Fees | 2.9% + €0.25 per transaction | $25 |
+| **External Total** | | **$600-1100** |
+
+**Total Monthly Cost**: **$700-1350** for 10 customers
+
+**Revenue (10 Customers)**:
+- 5 Starter (29€) + 3 Professional (79€) + 2 Enterprise (199€) = **€782/month**
+- **Break-even**: 15-20 customers
+
+## Implementation Status
+
+### Phase 1: Infrastructure (Weeks 1-2) - ⏳ Pending
+- [ ] AWS account setup, IAM roles, VPC
+- [ ] Aurora PostgreSQL + DynamoDB deployment
+- [ ] S3 buckets, Cognito, API Gateway
+- [ ] Lambda function scaffolds
+- [ ] AWS CDK project structure
+
+### Phase 2: Onboarding Steps 1-3 (Weeks 3-4) - ⏳ Pending
+- [ ] Business scraper Lambda (Python)
+- [ ] Voice selection API (ElevenLabs integration)
+- [ ] Confirm business endpoint
+- [ ] Frontend components (Steps 1-3)
+- [ ] End-to-end testing
+
+### Phase 3: Knowledge Base - Step 4 (Weeks 5-6) - ⏳ Pending
+- [ ] File upload to S3
+- [ ] PDF/DOCX extraction (PyPDF2, python-docx)
+- [ ] Bedrock integration (Claude 3.5 Sonnet)
+- [ ] Manual text entry API
+- [ ] Frontend component (Step 4)
+
+### Phase 4: Agent Deployment - Step 5 (Weeks 7-8) - ⏳ Pending
+- [ ] Step Functions workflow
+- [ ] ElevenLabs agent creation Lambda
+- [ ] Twilio phone provisioning Lambda
+- [ ] Test call functionality
+- [ ] WebSocket real-time updates
+- [ ] Frontend component (Step 5)
+
+### Phase 5: Payment - Step 6 (Week 9) - ⏳ Pending
+- [ ] Stripe integration
+- [ ] Payment flow (Elements)
+- [ ] Usage tracking Lambda
+- [ ] Agent activation
+- [ ] Frontend component (Step 6)
+
+### Phase 6: Dashboard (Week 10) - ⏳ Pending
+- [ ] Dashboard overview
+- [ ] Call history (DynamoDB queries)
+- [ ] Agent settings
+- [ ] Billing & invoices
+
+### Phase 7: Polish & Launch (Week 10) - ⏳ Pending
+- [ ] Error handling & retries
+- [ ] Security audit (AWS Security Hub)
+- [ ] Load testing (100 concurrent onboardings)
+- [ ] Documentation (Swagger, developer guide)
+- [ ] Production deployment
+- [ ] Launch to 10 beta customers in Bilbao
+
+**Overall Progress**: 0% (0/38 PRD items complete)
+
+## Documentation
+
+### Comprehensive Guides
+1. **README.md** in `planning/proceso_creacion_agente/`:
+   - Complete 6-step onboarding flow documentation
+   - Visual designs for new Steps 4 & 5
+   - Database schema with relationships
+   - API endpoint specifications
+   - Integration guides (ElevenLabs, Twilio, Stripe, Bedrock)
+   - Testing and deployment instructions
+   - Troubleshooting guide
+
+2. **prd.json** - 38 backend implementation items:
+   - 5 infrastructure items (infra-01 to infra-05)
+   - 5 onboarding items (onboarding-01 to onboarding-05)
+   - 6 knowledge base items (kb-01 to kb-06)
+   - 7 agent deployment items (agent-01 to agent-07)
+   - 5 payment items (payment-01 to payment-05)
+   - 5 dashboard items (dashboard-01 to dashboard-05)
+   - 5 polish items (polish-01 to polish-05)
+
+3. **Approved Plan** at `.claude/plans/lovely-brewing-ember.md`:
+   - Executive summary
+   - Extended 6-step onboarding flow specifications
+   - AWS architecture diagrams
+   - Complete database schema (SQL)
+   - API endpoint list with examples
+   - Integration code samples
+   - Implementation roadmap (10 weeks)
+   - Cost estimates and break-even analysis
+
+## Next Steps
+
+### Immediate (Before Implementation)
+1. **Clarify with User**:
+   - ElevenLabs account (enterprise or pro tier?)
+   - Twilio account with Spanish numbers enabled?
+   - Stripe account (existing or create new?)
+   - AWS account (new or existing?)
+   - Budget approval (~€1000/month for 10 customers)
+
+2. **Setup Development Environment**:
+   - AWS credentials and CLI
+   - Node.js 20.x and Python 3.12
+   - PostgreSQL local instance (or connect to Aurora dev cluster)
+   - Environment variables (.env file)
+
+3. **Begin Phase 1**:
+   - Start with infrastructure setup (AWS CDK)
+   - Deploy Aurora + DynamoDB
+   - Create Lambda function scaffolds
+
+### Week-by-Week Plan
+- **Weeks 1-2**: Infrastructure (AWS, databases, API Gateway)
+- **Weeks 3-4**: Steps 1-3 (scraper, voice selection, frontend)
+- **Weeks 5-6**: Step 4 (knowledge base upload, Bedrock extraction)
+- **Weeks 7-8**: Step 5 (agent deployment, test calls)
+- **Week 9**: Step 6 (payment, Stripe integration)
+- **Week 10**: Dashboard + polish + launch to beta customers
+
+---
+
+**Last Updated**: 2025-01-06
+**Version**: 2.0 (Frontend complete, Backend planned)
+**Status**: Landing page deployed, Backend architecture documented and ready for implementation
