@@ -45,7 +45,7 @@ frontend/
 - **Fase**: MVP Completado + Industries Section ✨🎯
 - **Progreso**: 76% (13/17 items del PRD)
 - **Server**: http://localhost:3001
-- **Git**: 3 commits (feat inicial + style refinement + animations)
+- **Git**: 2 commits (feat inicial con Industries + fix embedded repo)
 - **Diseño**: Paridad visual con Trillet.ai + animaciones premium
 - **UX**: Scroll animations + hover effects + Industries dropdown navegable
 

@@ -60,6 +60,13 @@ export default function Navigation() {
             >
               Blog
             </Link>
+
+            <Link
+              href="/enterprise"
+              className="text-text-primary hover:text-white transition-colors text-sm font-medium"
+            >
+              Enterprise
+            </Link>
           </div>
 
           {/* Desktop CTA Buttons */}
@@ -125,6 +132,15 @@ export default function Navigation() {
             >
               Blog
             </Link>
+
+            <Link
+              href="/enterprise"
+              className="block text-text-primary hover:text-white transition-colors py-2 font-medium"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Enterprise
+            </Link>
+
             <div className="pt-4 border-t border-white/10 space-y-3">
               <button className="w-full text-left text-text-primary hover:text-white transition-colors py-2 font-medium">
                 Iniciar sesión
