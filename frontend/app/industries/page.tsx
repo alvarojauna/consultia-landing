@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import { industries } from '../../lib/industries'
 
@@ -41,12 +40,7 @@ export default function IndustriesPage() {
     <main className="min-h-screen bg-dark pt-24 pb-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Hero */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="text-center mb-12"
-        >
+        <div className="text-center mb-12 animate-fade-in">
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-heading font-bold text-white mb-6">
             Recepcionista AI para{' '}
             <span className="text-primary">Industrias Prioritarias</span>
@@ -55,15 +49,10 @@ export default function IndustriesPage() {
             Nunca pierdas una llamada más. La IA de ConsultIA responde 24/7, filtra clientes,
             captura detalles del servicio y agenda citas automáticamente.
           </p>
-        </motion.div>
+        </div>
 
         {/* Search Bar */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.1 }}
-          className="max-w-2xl mx-auto mb-8"
-        >
+        <div className="max-w-2xl mx-auto mb-8 animate-fade-in-delay-1">
           <div className="relative">
             <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary" />
             <input
@@ -74,15 +63,10 @@ export default function IndustriesPage() {
               className="w-full bg-dark-lighter border border-white/10 rounded-xl pl-12 pr-4 py-4 text-white placeholder-text-secondary focus:outline-none focus:border-primary/50 transition-colors"
             />
           </div>
-        </motion.div>
+        </div>
 
         {/* Category Filters */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="flex flex-wrap items-center justify-center gap-3 mb-12"
-        >
+        <div className="flex flex-wrap items-center justify-center gap-3 mb-12 animate-fade-in-delay-2">
           {categories.map((category) => (
             <button
               key={category.id}
@@ -97,7 +81,7 @@ export default function IndustriesPage() {
               <span className="ml-2 text-sm opacity-75">({category.count})</span>
             </button>
           ))}
-        </motion.div>
+        </div>
 
         {/* Results Count */}
         <div className="text-center text-text-secondary mb-8">
@@ -107,12 +91,7 @@ export default function IndustriesPage() {
         {/* Industries Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
           {filteredIndustries.map((industry, index) => (
-            <motion.article
-              key={industry.slug}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: index * 0.05 }}
-            >
+            <article key={industry.slug} className="animate-fade-in">
               <Link href={`/industries/${industry.slug}`}>
                 <div className="bg-dark-lighter border border-white/10 rounded-xl p-6 h-full hover:border-primary/30 hover:-translate-y-1 transition-all duration-300 group">
                   {/* Icon + Category Badge */}
@@ -157,7 +136,7 @@ export default function IndustriesPage() {
                   </div>
                 </div>
               </Link>
-            </motion.article>
+            </article>
           ))}
         </div>
 

@@ -1,6 +1,3 @@
-'use client'
-
-import { motion } from 'framer-motion'
 import { CheckIcon } from '@heroicons/react/24/solid'
 
 const plans = [
@@ -55,36 +52,20 @@ export default function Pricing() {
     <section className="py-24 bg-dark">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.6 }}
-          className="text-center max-w-3xl mx-auto mb-4"
-        >
+        <div className="text-center max-w-3xl mx-auto mb-4 animate-fade-in">
           <h2 className="text-5xl sm:text-6xl lg:text-7xl font-heading font-bold text-white mb-6">
             Empieza sin riesgo.
           </h2>
           <p className="text-xl text-primary font-semibold mb-12">
             30 días de garantía.
           </p>
-        </motion.div>
+        </div>
 
         {/* Pricing Cards */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto"
-        >
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto animate-fade-in-delay-1">
           {plans.map((plan, index) => (
-            <motion.div
+            <div
               key={plan.name}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: index * 0.1 }}
               className={`relative rounded-2xl p-8 transition-all duration-300 hover:-translate-y-1 ${
                 plan.popular
                   ? 'bg-primary/10 border-2 border-primary shadow-xl shadow-primary/20 hover:shadow-2xl hover:shadow-primary/30'
@@ -138,9 +119,9 @@ export default function Pricing() {
               >
                 {plan.cta}
               </button>
-            </motion.div>
+            </div>
           ))}
-        </motion.div>
+        </div>
 
         {/* Footer Note */}
         <div className="text-center mt-12">

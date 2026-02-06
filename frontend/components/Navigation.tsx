@@ -2,12 +2,12 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Menu } from '@headlessui/react'
 import { Bars3Icon, XMarkIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
 import { industries } from '../lib/industries'
 
 export default function Navigation() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [industriesOpen, setIndustriesOpen] = useState(false)
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-dark/80 backdrop-blur-md border-b border-white/10 transition-all duration-300">
@@ -30,29 +30,30 @@ export default function Navigation() {
             </Link>
 
             {/* Industries Dropdown */}
-            <Menu as="div" className="relative">
-              <Menu.Button className="flex items-center space-x-1 text-text-primary hover:text-white transition-colors text-sm font-medium">
+            <div
+              className="relative"
+              onMouseEnter={() => setIndustriesOpen(true)}
+              onMouseLeave={() => setIndustriesOpen(false)}
+            >
+              <button className="flex items-center space-x-1 text-text-primary hover:text-white transition-colors text-sm font-medium">
                 <span>Industrias</span>
                 <ChevronDownIcon className="h-4 w-4" />
-              </Menu.Button>
-              <Menu.Items className="absolute left-0 mt-2 w-64 bg-dark-lighter border border-white/10 rounded-xl shadow-xl shadow-black/50 py-2 z-50">
-                {industries.map((industry) => (
-                  <Menu.Item key={industry.slug}>
-                    {({ active }) => (
-                      <Link
-                        href={`/industries/${industry.slug}`}
-                        className={`flex items-center space-x-3 px-4 py-3 text-sm transition-colors ${
-                          active ? 'bg-white/5 text-white' : 'text-text-primary'
-                        }`}
-                      >
-                        <industry.icon className="h-5 w-5 text-primary" />
-                        <span>{industry.name}</span>
-                      </Link>
-                    )}
-                  </Menu.Item>
-                ))}
-              </Menu.Items>
-            </Menu>
+              </button>
+              {industriesOpen && (
+                <div className="absolute left-0 mt-2 w-64 bg-dark-lighter border border-white/10 rounded-xl shadow-xl shadow-black/50 py-2 z-50">
+                  {industries.map((industry) => (
+                    <Link
+                      key={industry.slug}
+                      href={`/industries/${industry.slug}`}
+                      className="flex items-center space-x-3 px-4 py-3 text-sm transition-colors hover:bg-white/5 hover:text-white text-text-primary"
+                    >
+                      <industry.icon className="h-5 w-5 text-primary" />
+                      <span>{industry.name}</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <Link
               href="/blog"

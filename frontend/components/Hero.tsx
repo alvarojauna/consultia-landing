@@ -1,6 +1,3 @@
-'use client'
-
-import { motion } from 'framer-motion'
 import { PlayIcon } from '@heroicons/react/24/solid'
 
 export default function Hero() {
@@ -12,35 +9,26 @@ export default function Hero() {
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="text-center max-w-5xl mx-auto">
           {/* Main Headline */}
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="text-4xl sm:text-5xl lg:text-6xl font-heading font-light text-white mb-6 leading-tight tracking-tight"
+          <h1
+            className="text-4xl sm:text-5xl lg:text-6xl font-heading font-light text-white mb-6 leading-tight tracking-tight animate-fade-in"
           >
             Recepcionista AI que{' '}
             <span className="text-primary">atiende llamadas,</span>
             <br />
             <span className="text-primary">agenda citas</span> y{' '}
             <span className="text-primary">filtra spam.</span>
-          </motion.h1>
+          </h1>
 
           {/* Subheadline */}
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="text-xl sm:text-2xl text-text-primary mb-10 max-w-3xl mx-auto"
+          <p
+            className="text-xl sm:text-2xl text-text-primary mb-10 max-w-3xl mx-auto animate-fade-in-delay-1"
           >
             Mientras tu competencia pierde llamadas, tú cierras citas. Tu recepcionista AI trabaja 24/7 en español con números +34.
-          </motion.p>
+          </p>
 
           {/* CTAs */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12"
+          <div
+            className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12 animate-fade-in-delay-2"
           >
             <button className="bg-primary hover:bg-primary-600 text-white px-8 py-3 rounded-full text-base font-medium transition-all hover:shadow-2xl hover:shadow-primary/50 hover:scale-105 w-full sm:w-auto">
               Empezar en 5 minutos
@@ -49,14 +37,11 @@ export default function Hero() {
               <PlayIcon className="h-5 w-5" />
               Ver demo
             </button>
-          </motion.div>
+          </div>
 
           {/* Stats */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            className="grid grid-cols-2 md:grid-cols-4 gap-8 mt-20 max-w-4xl mx-auto"
+          <div
+            className="grid grid-cols-2 md:grid-cols-4 gap-8 mt-20 max-w-4xl mx-auto animate-fade-in-delay-3"
           >
             <div className="text-center">
               <div className="text-3xl font-heading font-semibold text-white mb-2">10k+</div>
@@ -74,7 +59,7 @@ export default function Hero() {
               <div className="text-3xl font-heading font-semibold text-white mb-2">1.5M+</div>
               <div className="text-sm text-text-secondary">minutos gestionados</div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
     </section>

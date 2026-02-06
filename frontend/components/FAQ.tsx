@@ -1,7 +1,6 @@
 'use client'
 
-import { motion } from 'framer-motion'
-import { Disclosure, Transition } from '@headlessui/react'
+import { useState } from 'react'
 import { ChevronDownIcon } from '@heroicons/react/24/outline'
 
 const faqs = [
@@ -47,64 +46,52 @@ const faqs = [
   },
 ]
 
+function FAQItem({ faq, index }: { faq: typeof faqs[0]; index: number }) {
+  const [isOpen, setIsOpen] = useState(false)
+
+  return (
+    <div className="bg-dark border border-white/10 rounded-xl overflow-hidden hover:border-primary/30 transition-colors">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-6 py-5 text-left flex items-center justify-between hover:bg-white/5 transition-colors"
+      >
+        <span className="text-lg font-semibold text-white pr-8">
+          {faq.question}
+        </span>
+        <ChevronDownIcon
+          className={`h-5 w-5 text-primary transition-transform flex-shrink-0 ${
+            isOpen ? 'transform rotate-180' : ''
+          }`}
+        />
+      </button>
+      {isOpen && (
+        <div className="px-6 pb-5 animate-fade-in">
+          <p className="text-text-secondary leading-relaxed">
+            {faq.answer}
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function FAQ() {
   return (
     <section className="py-24 bg-dark-lighter">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.6 }}
-          className="text-center mb-16"
-        >
+        <div className="text-center mb-16 animate-fade-in">
           <h2 className="text-5xl sm:text-6xl lg:text-7xl font-heading font-bold text-white mb-6">
             Preguntas frecuentes
           </h2>
-        </motion.div>
+        </div>
 
         {/* FAQ Accordion */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="space-y-4"
-        >
+        <div className="space-y-4 animate-fade-in-delay-1">
           {faqs.map((faq, index) => (
-            <Disclosure key={index}>
-              {({ open }) => (
-                <div className="bg-dark border border-white/10 rounded-xl overflow-hidden hover:border-primary/30 transition-colors">
-                  <Disclosure.Button className="w-full px-6 py-5 text-left flex items-center justify-between hover:bg-white/5 transition-colors">
-                    <span className="text-lg font-semibold text-white pr-8">
-                      {faq.question}
-                    </span>
-                    <ChevronDownIcon
-                      className={`h-5 w-5 text-primary transition-transform flex-shrink-0 ${
-                        open ? 'transform rotate-180' : ''
-                      }`}
-                    />
-                  </Disclosure.Button>
-                  <Transition
-                    enter="transition duration-200 ease-out"
-                    enterFrom="transform scale-95 opacity-0"
-                    enterTo="transform scale-100 opacity-100"
-                    leave="transition duration-150 ease-out"
-                    leaveFrom="transform scale-100 opacity-100"
-                    leaveTo="transform scale-95 opacity-0"
-                  >
-                    <Disclosure.Panel className="px-6 pb-5">
-                      <p className="text-text-secondary leading-relaxed">
-                        {faq.answer}
-                      </p>
-                    </Disclosure.Panel>
-                  </Transition>
-                </div>
-              )}
-            </Disclosure>
+            <FAQItem key={index} faq={faq} index={index} />
           ))}
-        </motion.div>
+        </div>
       </div>
     </section>
   )

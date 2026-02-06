@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { motion } from 'framer-motion'
 import { CheckIcon, XMarkIcon } from '@heroicons/react/24/solid'
 import Link from 'next/link'
 
@@ -171,12 +170,7 @@ export default function PricingPage() {
     <main className="min-h-screen bg-dark pt-24 pb-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Hero */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="text-center mb-12"
-        >
+        <div className="text-center mb-12 animate-fade-in">
           <p className="text-text-secondary mb-4">Confían en nosotros más de 100 negocios en España</p>
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-heading font-bold text-white mb-6">
             Precios
@@ -184,7 +178,7 @@ export default function PricingPage() {
           <p className="text-xl text-text-primary max-w-3xl mx-auto">
             Precios simples y transparentes para cada tamaño de negocio.
           </p>
-        </motion.div>
+        </div>
 
         {/* Billing Toggle */}
         <div className="flex items-center justify-center gap-4 mb-12">
@@ -216,12 +210,9 @@ export default function PricingPage() {
         {/* Pricing Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20">
           {plans.map((plan, index) => (
-            <motion.div
+            <div
               key={plan.name}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: index * 0.1 }}
-              className={`relative rounded-2xl p-8 transition-all duration-300 ${
+              className={`relative rounded-2xl p-8 transition-all duration-300 animate-fade-in ${
                 plan.popular
                   ? 'bg-primary/10 border-2 border-primary shadow-xl shadow-primary/20'
                   : 'bg-dark-lighter border border-white/10'
@@ -272,7 +263,7 @@ export default function PricingPage() {
               >
                 {plan.cta}
               </button>
-            </motion.div>
+            </div>
           ))}
         </div>
 
