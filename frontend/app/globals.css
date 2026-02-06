@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+@theme {
+  /* Colores exactos de Trillet.ai */
+  --color-primary: #1060FF;
+  --color-primary-50: #E6F0FF;
+  --color-primary-100: #CCE1FF;
+  --color-primary-200: #99C3FF;
+  --color-primary-300: #66A5FF;
+  --color-primary-400: #3387FF;
+  --color-primary-500: #1060FF;
+  --color-primary-600: #0050E6;
+  --color-primary-700: #003CB3;
+  --color-primary-800: #002880;
+  --color-primary-900: #00144D;
+
+  --color-dark: #0A0A0A;
+  --color-dark-lighter: #1A1A1A;
+  --color-dark-light: #2A2A2A;
+
+  --color-text-primary: #EDEDED;
+  --color-text-secondary: #A0A0A0;
+  --color-text-muted: #666666;
+
+  /* Fonts */
+  --font-family-sans: var(--font-inter), system-ui, sans-serif;
+  --font-family-heading: var(--font-urbanist), system-ui, sans-serif;
+}
+
+body {
+  background-color: var(--color-dark);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-family-heading);
+  color: white;
+}
+
+/* Utilidades adicionales */
+.rounded-full {
+  border-radius: 9999px;
+}
+
+.tracking-tight {
+  letter-spacing: -0.025em;
+}
