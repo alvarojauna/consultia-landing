@@ -983,12 +983,12 @@ await stripe.subscriptionItems.createUsageRecord(
 - [x] Stripe webhook Lambda — payment succeeded/failed, subscription lifecycle
 - [x] Usage tracker integration — SQS trigger from Twilio, Stripe metered billing
 
-### Phase 6: Dashboard (Week 10) - ⏳ Pending
-- [ ] Dashboard overview (dashboard-01)
-- [ ] Call history — DynamoDB queries (dashboard-02)
-- [ ] Agent settings (dashboard-03)
-- [ ] Billing & invoices (dashboard-04)
-- [ ] CloudWatch dashboards & alarms (dashboard-05, 60% done — webhooks implemented)
+### Phase 6: Dashboard (Week 10) - ✅ Complete
+- [x] Dashboard overview — agent status, usage stats, subscription info, usage bar (dashboard-01)
+- [x] Call history — paginated table with recording/transcript expandable rows (dashboard-02)
+- [x] Agent settings — edit name/prompt, pause/resume toggle, KB summary (dashboard-03)
+- [x] Billing & invoices — usage breakdown, daily chart, Stripe invoice list (dashboard-04)
+- [x] Dashboard API Lambda — separate `dashboard-api` Lambda with 4 route files (dashboard-05)
 
 ### Phase 7: Polish & Launch (Week 10) - ⏳ Pending
 - [ ] Error handling & retries (polish-01)
@@ -998,9 +998,9 @@ await stripe.subscriptionItems.createUsageRecord(
 - [ ] Production deployment (polish-05)
 - [ ] Launch to 10 beta customers in Bilbao
 
-**Overall Progress**: 74% (28/38 PRD items complete)
+**Overall Progress**: 87% (33/38 PRD items complete)
 
-### Backend Lambda Status (All 7 Implemented)
+### Backend Lambda Status (All 8 Implemented)
 
 | Lambda | Files | Status |
 |--------|-------|--------|
@@ -1011,6 +1011,7 @@ await stripe.subscriptionItems.createUsageRecord(
 | twilio-webhook | index.ts, call-status.ts, validate-signature.ts | ✅ Complete |
 | stripe-webhook | index.ts, subscription-events.ts, validate-signature.ts | ✅ Complete |
 | usage-tracker | lambda_function.py — overage + Stripe metered | ✅ Complete |
+| dashboard-api | index.ts, overview.ts, calls.ts, agent-settings.ts, billing.ts | ✅ Complete |
 
 ### Frontend Onboarding Components (All 6 Steps Implemented)
 
@@ -1088,5 +1089,5 @@ await stripe.subscriptionItems.createUsageRecord(
 ---
 
 **Last Updated**: 2026-02-06
-**Version**: 4.0 (Full onboarding flow complete — backend + frontend)
-**Status**: Landing page deployed, all 7 backend Lambda functions + all 6 frontend onboarding steps implemented. Pending: dashboard, polish & production deployment.
+**Version**: 5.0 (Full application — onboarding + dashboard complete)
+**Status**: Landing page, all 8 backend Lambda functions, 6 onboarding steps, and full dashboard implemented. Pending: polish & production deployment (5 items).

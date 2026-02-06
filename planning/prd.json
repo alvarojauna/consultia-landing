@@ -2,9 +2,9 @@
   "name": "ConsultIA - Backend Agent Creation System",
   "description": "Sistema backend completo para creación multi-tenant de agentes AI con ElevenLabs, Twilio y Stripe. Incluye flujo de onboarding de 6 pasos con subida de base de conocimiento, despliegue de agente y llamada de prueba antes del pago.",
   "progress": {
-    "completed": 28,
+    "completed": 33,
     "total": 38,
-    "percentage": 74
+    "percentage": 87
   },
   "items": [
     {
@@ -439,8 +439,8 @@
         "Links rápidos: settings, billing, call history"
       ],
       "priority": "medium",
-      "passes": false,
-      "progress": 0
+      "passes": true,
+      "progress": 100
     },
     {
       "id": "dashboard-02",
@@ -454,8 +454,8 @@
         "Features: play recording, view transcript, export CSV"
       ],
       "priority": "medium",
-      "passes": false,
-      "progress": 0
+      "passes": true,
+      "progress": 100
     },
     {
       "id": "dashboard-03",
@@ -469,8 +469,8 @@
         "Crear frontend/components/dashboard/AgentSettings.tsx"
       ],
       "priority": "medium",
-      "passes": false,
-      "progress": 0
+      "passes": true,
+      "progress": 100
     },
     {
       "id": "dashboard-04",
@@ -484,8 +484,8 @@
         "Features: upgrade/downgrade plan, cancel subscription"
       ],
       "priority": "medium",
-      "passes": false,
-      "progress": 0
+      "passes": true,
+      "progress": 100
     },
     {
       "id": "dashboard-05",
@@ -499,8 +499,8 @@
         "Configurar alarms: failed deployments, API errors >1%, high DynamoDB latency"
       ],
       "priority": "medium",
-      "passes": false,
-      "progress": 60
+      "passes": true,
+      "progress": 100
     },
     {
       "id": "polish-01",

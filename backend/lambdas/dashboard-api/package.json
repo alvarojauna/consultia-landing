@@ -1,0 +1,20 @@
+{
+  "name": "consultia-dashboard-api",
+  "version": "1.0.0",
+  "description": "Lambda function for dashboard API endpoints",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "jest"
+  },
+  "dependencies": {
+    "consultia-shared-nodejs": "file:../../shared/nodejs",
+    "stripe": "^16.2.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^20.14.9",
+    "typescript": "^5.5.3"
+  }
+}

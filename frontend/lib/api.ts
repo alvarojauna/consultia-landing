@@ -256,6 +256,97 @@ export const api = {
     request<{ checkout_url: string; dashboard_url: string }>(`/onboarding/${customerId}/create-checkout`, {
       method: 'POST',
     }),
+
+  // ============================
+  // Dashboard API
+  // ============================
+
+  getDashboardOverview: (customerId: string) =>
+    request<DashboardOverview>(`/dashboard/${customerId}/overview`),
+
+  getCalls: (customerId: string, params?: { page?: number; limit?: number; from?: string; to?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.limit) qs.set('limit', String(params.limit));
+    if (params?.from) qs.set('from', params.from);
+    if (params?.to) qs.set('to', params.to);
+    const query = qs.toString();
+    return request<CallsResponse>(`/dashboard/${customerId}/calls${query ? `?${query}` : ''}`);
+  },
+
+  getAgentSettings: (customerId: string) =>
+    request<AgentSettings>(`/dashboard/${customerId}/agent`),
+
+  updateAgentSettings: (customerId: string, data: Partial<AgentSettingsUpdate>) =>
+    request<{ updated: boolean }>(`/dashboard/${customerId}/agent`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  pauseAgent: (customerId: string) =>
+    request<{ paused: boolean }>(`/dashboard/${customerId}/agent/pause`, { method: 'POST' }),
+
+  resumeAgent: (customerId: string) =>
+    request<{ resumed: boolean }>(`/dashboard/${customerId}/agent/resume`, { method: 'POST' }),
+
+  getBilling: (customerId: string) =>
+    request<BillingData>(`/dashboard/${customerId}/billing`),
+}
+
+// ============================
+// Dashboard Types
+// ============================
+
+export interface DashboardOverview {
+  customer: { customer_id: string; business_name: string; industry: string; status: string }
+  agent: { agent_id: string; agent_name: string; status: string; voice_name: string; deployed_at: string; last_active_at: string } | null
+  phone_number: { number: string; country_code: string } | null
+  subscription: { plan_tier: string; billing_period: string; minutes_included: number; price_eur: number; status: string; current_period_start: string; current_period_end: string; trial_end: string | null } | null
+  usage: { total_calls: number; total_minutes: number; total_cost: number; minutes_remaining: number; usage_percentage: number }
+  recent_calls_7d: number
+}
+
+export interface CallRecord {
+  usage_id: string
+  call_sid: string
+  agent_name: string
+  duration_minutes: number
+  cost_eur: number
+  recorded_at: string
+  recording_url: string | null
+  transcript: string | null
+}
+
+export interface CallsResponse {
+  calls: CallRecord[]
+  pagination: { page: number; limit: number; total: number; total_pages: number }
+}
+
+export interface AgentSettings {
+  agent_id: string
+  elevenlabs_agent_id: string
+  agent_name: string
+  voice_id: string
+  voice_name: string
+  system_prompt: string
+  conversation_config: any
+  status: string
+  deployed_at: string
+  knowledge_base: { status: string; total_sources: number; services_count: number; faqs_count: number; has_policies: boolean; has_hours: boolean } | null
+}
+
+export interface AgentSettingsUpdate {
+  agent_name: string
+  system_prompt: string
+  voice_id: string
+  voice_name: string
+}
+
+export interface BillingData {
+  subscription: { subscription_id: string; plan_tier: string; billing_period: string; minutes_included: number; price_eur: number; status: string; current_period_start: string; current_period_end: string; trial_end: string | null; created_at: string }
+  usage: { total_calls: number; total_minutes: number; minutes_included: number; minutes_remaining: number; usage_percentage: number; overage_minutes: number; overage_cost_eur: number }
+  daily_usage: { date: string; calls: number; minutes: number }[]
+  invoices: { invoice_id: string; number: string; status: string; amount_eur: number; amount_paid_eur: number; period_start: string; period_end: string; invoice_url: string; pdf_url: string; created_at: string }[]
 }
 
 export { ApiError }
