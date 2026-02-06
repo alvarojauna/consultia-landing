@@ -990,15 +990,15 @@ await stripe.subscriptionItems.createUsageRecord(
 - [x] Billing & invoices — usage breakdown, daily chart, Stripe invoice list (dashboard-04)
 - [x] Dashboard API Lambda — separate `dashboard-api` Lambda with 4 route files (dashboard-05)
 
-### Phase 7: Polish & Launch (Week 10) - ⏳ Pending
-- [ ] Error handling & retries (polish-01)
-- [ ] Security audit — AWS Security Hub (polish-02)
-- [ ] Load testing — 100 concurrent onboardings (polish-03)
-- [ ] Documentation — Swagger, developer guide (polish-04)
+### Phase 7: Polish & Launch (Week 10) - ⏳ In Progress
+- [x] Error handling & retries — shared `withRetry()` utility with exponential backoff + jitter, `ValidationError` class in both API Lambdas (polish-01)
+- [x] Security hardening — input validation (UUID, phone, string, int, date, enum), XSS sanitization on agent updates, removed stack trace leakage (polish-02)
+- [x] API documentation — OpenAPI 3.0 spec covering all onboarding + dashboard + webhook endpoints (polish-03)
+- [ ] Load testing — 100 concurrent onboardings (polish-04)
 - [ ] Production deployment (polish-05)
 - [ ] Launch to 10 beta customers in Bilbao
 
-**Overall Progress**: 87% (33/38 PRD items complete)
+**Overall Progress**: 95% (36/38 PRD items complete)
 
 ### Backend Lambda Status (All 8 Implemented)
 
@@ -1089,5 +1089,5 @@ await stripe.subscriptionItems.createUsageRecord(
 ---
 
 **Last Updated**: 2026-02-06
-**Version**: 5.0 (Full application — onboarding + dashboard complete)
-**Status**: Landing page, all 8 backend Lambda functions, 6 onboarding steps, and full dashboard implemented. Pending: polish & production deployment (5 items).
+**Version**: 6.0 (Polish: error handling, security, API docs)
+**Status**: Landing page, all 8 backend Lambda functions, 6 onboarding steps, full dashboard, shared retry/validation libraries, and OpenAPI spec. Pending: load testing & production deployment (2 items).

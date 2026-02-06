@@ -4,6 +4,8 @@ import {
   createErrorResponse,
   createCorsResponse,
   logRequest,
+  validateUUID,
+  ValidationError,
 } from 'consultia-shared-nodejs';
 
 import { getOverview } from './routes/overview';
@@ -38,11 +40,14 @@ export const handler = async (
     await initializePool();
 
     const { httpMethod, path } = event;
-    const customerId = event.pathParameters?.customerId;
+    const rawCustomerId = event.pathParameters?.customerId;
 
-    if (!customerId) {
+    if (!rawCustomerId) {
       return createErrorResponse('INVALID_REQUEST', 'customerId is required', 400, null, requestId);
     }
+
+    // Validate customerId is a proper UUID to prevent path traversal / injection
+    const customerId = validateUUID(rawCustomerId, 'customerId');
 
     // ========================================
     // Overview
@@ -87,6 +92,11 @@ export const handler = async (
 
     return createErrorResponse('ROUTE_NOT_FOUND', `Route not found: ${httpMethod} ${path}`, 404, null, requestId);
   } catch (error: any) {
+    // Return 400 for validation errors, 500 for everything else
+    if (error instanceof ValidationError) {
+      return createErrorResponse('VALIDATION_ERROR', error.message, 400, null, requestId);
+    }
+
     console.error('[Dashboard Error]', error);
     return createErrorResponse(
       'INTERNAL_SERVER_ERROR',

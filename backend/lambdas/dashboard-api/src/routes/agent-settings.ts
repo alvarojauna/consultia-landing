@@ -1,4 +1,11 @@
-import { query, createSuccessResponse, createErrorResponse, parseBody } from 'consultia-shared-nodejs';
+import {
+  query,
+  createSuccessResponse,
+  createErrorResponse,
+  parseBody,
+  validateString,
+  sanitizeString,
+} from 'consultia-shared-nodejs';
 
 interface UpdateAgentPayload {
   agent_name?: string;
@@ -84,26 +91,30 @@ export async function updateAgentSettings(
   let paramIdx = 1;
 
   if (payload.agent_name !== undefined) {
+    const name = sanitizeString(validateString(payload.agent_name, 'agent_name', { minLength: 1, maxLength: 200 }));
     updates.push(`agent_name = $${paramIdx}`);
-    params.push(payload.agent_name);
+    params.push(name);
     paramIdx++;
   }
 
   if (payload.system_prompt !== undefined) {
+    const prompt = sanitizeString(validateString(payload.system_prompt, 'system_prompt', { maxLength: 50000 }));
     updates.push(`system_prompt = $${paramIdx}`);
-    params.push(payload.system_prompt);
+    params.push(prompt);
     paramIdx++;
   }
 
   if (payload.voice_id !== undefined) {
+    const voiceId = validateString(payload.voice_id, 'voice_id', { maxLength: 200 });
     updates.push(`voice_id = $${paramIdx}`);
-    params.push(payload.voice_id);
+    params.push(voiceId);
     paramIdx++;
   }
 
   if (payload.voice_name !== undefined) {
+    const voiceName = sanitizeString(validateString(payload.voice_name, 'voice_name', { maxLength: 200 }));
     updates.push(`voice_name = $${paramIdx}`);
-    params.push(payload.voice_name);
+    params.push(voiceName);
     paramIdx++;
   }
 

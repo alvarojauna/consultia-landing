@@ -5,6 +5,7 @@ import {
   createErrorResponse,
   createCorsResponse,
   logRequest,
+  ValidationError,
 } from 'consultia-shared-nodejs';
 
 // Route handlers
@@ -258,14 +259,18 @@ export const handler = async (
       requestId
     );
   } catch (error: any) {
+    if (error instanceof ValidationError) {
+      return createErrorResponse('VALIDATION_ERROR', error.message, 400, null, requestId);
+    }
+
     console.error('[Lambda Error]', error);
 
     return createErrorResponse(
       'INTERNAL_SERVER_ERROR',
       error.message || 'An unexpected error occurred',
       500,
-      { stack: error.stack },
-      event.requestContext.requestId
+      null,
+      requestId
     );
   }
 };

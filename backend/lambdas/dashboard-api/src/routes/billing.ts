@@ -1,4 +1,4 @@
-import { query, createSuccessResponse, createErrorResponse, getApiKeys } from 'consultia-shared-nodejs';
+import { query, createSuccessResponse, createErrorResponse, getApiKeys, withRetry, RETRY_CONFIGS } from 'consultia-shared-nodejs';
 import Stripe from 'stripe';
 
 let stripeInstance: Stripe | null = null;
@@ -69,10 +69,10 @@ export async function getBilling(customerId: string, requestId: string) {
   if (sub.stripe_customer_id) {
     try {
       const stripe = await getStripe();
-      const stripeInvoices = await stripe.invoices.list({
-        customer: sub.stripe_customer_id,
-        limit: 10,
-      });
+      const stripeInvoices = await withRetry(
+        () => stripe.invoices.list({ customer: sub.stripe_customer_id, limit: 10 }),
+        RETRY_CONFIGS.externalApi
+      );
 
       invoices = stripeInvoices.data.map((inv) => ({
         invoice_id: inv.id,

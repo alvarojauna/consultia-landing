@@ -1,4 +1,4 @@
-import { query, createSuccessResponse } from 'consultia-shared-nodejs';
+import { query, createSuccessResponse, validateInt, validateDateString } from 'consultia-shared-nodejs';
 
 /**
  * GET /dashboard/:customerId/calls?page=1&limit=20&status=completed&from=2025-01-01&to=2025-02-01
@@ -12,11 +12,11 @@ export async function getCalls(
   queryParams: Record<string, string | undefined>,
   requestId: string
 ) {
-  const page = Math.max(1, parseInt(queryParams.page || '1', 10));
-  const limit = Math.min(100, Math.max(1, parseInt(queryParams.limit || '20', 10)));
+  const page = validateInt(queryParams.page, 'page', { min: 1, max: 1000, defaultValue: 1 });
+  const limit = validateInt(queryParams.limit, 'limit', { min: 1, max: 100, defaultValue: 20 });
   const offset = (page - 1) * limit;
-  const fromDate = queryParams.from || null;
-  const toDate = queryParams.to || null;
+  const fromDate = validateDateString(queryParams.from, 'from');
+  const toDate = validateDateString(queryParams.to, 'to');
 
   // Build WHERE clauses dynamically
   const conditions: string[] = ['ur.customer_id = $1'];

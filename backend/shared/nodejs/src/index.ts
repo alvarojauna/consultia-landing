@@ -33,3 +33,18 @@ export {
   validateRequiredFields,
   getUserIdFromEvent,
 } from './utilities';
+
+// Retry with exponential backoff
+export { withRetry, RETRY_CONFIGS } from './retry';
+
+// Input validation and sanitization
+export {
+  validateUUID,
+  validatePhone,
+  validateString,
+  sanitizeString,
+  validateInt,
+  validateDateString,
+  validateEnum,
+  ValidationError,
+} from './validation';

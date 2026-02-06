@@ -1,0 +1,968 @@
+openapi: 3.0.3
+info:
+  title: ConsultIA API
+  description: |
+    Multi-tenant SaaS platform for AI-powered phone agents.
+    Two main API surfaces: Onboarding (customer setup flow) and Dashboard (management).
+  version: 1.0.0
+  contact:
+    name: ConsultIA Engineering
+
+servers:
+  - url: https://api.consultia.es/v1
+    description: Production
+  - url: https://api-staging.consultia.es/v1
+    description: Staging
+
+tags:
+  - name: Onboarding
+    description: 6-step customer onboarding flow
+  - name: Dashboard
+    description: Customer dashboard and management
+  - name: Public
+    description: Publicly accessible endpoints (no auth)
+
+paths:
+  # ════════════════════════════════════════════════
+  # ONBOARDING API
+  # ════════════════════════════════════════════════
+
+  /onboarding/business-info:
+    post:
+      tags: [Onboarding]
+      summary: Submit business information for scraping
+      description: |
+        Step 1 of onboarding. Accepts business URL + phone number.
+        Triggers async scraping via Step Functions (website → structured data).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [business_url, phone_number]
+              properties:
+                business_url:
+                  type: string
+                  format: uri
+                  example: "https://www.clinicadental-ejemplo.es"
+                phone_number:
+                  type: string
+                  pattern: '^\+[1-9]\d{1,14}$'
+                  example: "+34612345678"
+      responses:
+        '201':
+          description: Customer created, scraping started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingStartResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /onboarding/{customerId}/confirm-business:
+    post:
+      tags: [Onboarding]
+      summary: Confirm or edit scraped business data
+      description: Step 2. User reviews and optionally edits the scraped business data.
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirmed]
+              properties:
+                confirmed:
+                  type: boolean
+                edits:
+                  type: object
+                  description: Optional field overrides from the user
+      responses:
+        '200':
+          description: Business data confirmed
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /voices:
+    get:
+      tags: [Public]
+      summary: List available voice options
+      description: Returns the catalog of ElevenLabs voices available for agents.
+      responses:
+        '200':
+          description: Voice catalog
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  voices:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Voice'
+
+  /onboarding/{customerId}/select-voice:
+    post:
+      tags: [Onboarding]
+      summary: Select voice for the agent
+      description: Step 3. Associates a voice with the customer's agent.
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [voice_id]
+              properties:
+                voice_id:
+                  type: string
+                  example: "pNInz6obpgDQGcFmaJgB"
+                voice_name:
+                  type: string
+                  example: "Adam"
+      responses:
+        '200':
+          description: Voice selected
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /onboarding/{customerId}/knowledge-base/upload:
+    post:
+      tags: [Onboarding]
+      summary: Upload files to knowledge base
+      description: |
+        Step 4a. Upload PDF/TXT/DOC files (max 10MB each).
+        Files are stored in S3 and processed asynchronously.
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        '200':
+          description: Files uploaded and processing started
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /onboarding/{customerId}/knowledge-base/text:
+    post:
+      tags: [Onboarding]
+      summary: Add manual text to knowledge base
+      description: Step 4b. Add text entries (FAQs, policies, etc.) directly.
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text, category]
+              properties:
+                text:
+                  type: string
+                  maxLength: 50000
+                category:
+                  type: string
+                  enum: [faq, policy, service, general]
+      responses:
+        '200':
+          description: Text added to knowledge base
+
+  /onboarding/{customerId}/knowledge-base/status:
+    get:
+      tags: [Onboarding]
+      summary: Get knowledge base processing status
+      description: Polling endpoint for KB processing progress.
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      responses:
+        '200':
+          description: KB status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [pending, processing, completed, failed]
+                  progress:
+                    type: number
+                    minimum: 0
+                    maximum: 100
+                  total_sources:
+                    type: integer
+
+  /onboarding/{customerId}/deploy-agent:
+    post:
+      tags: [Onboarding]
+      summary: Deploy the agent to ElevenLabs + Twilio
+      description: |
+        Step 5a. Creates the ElevenLabs conversational agent, provisions a Twilio
+        phone number, and wires them together. Returns immediately; poll deploy-status.
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      responses:
+        '202':
+          description: Deployment started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agent_id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    example: deploying
+
+  /onboarding/{customerId}/deploy-status:
+    get:
+      tags: [Onboarding]
+      summary: Get agent deployment status
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      responses:
+        '200':
+          description: Deploy status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [deploying, provisioning_phone, configuring_webhook, active, failed]
+                  phone_number:
+                    type: string
+                    nullable: true
+                  error:
+                    type: string
+                    nullable: true
+
+  /onboarding/{customerId}/test-call:
+    post:
+      tags: [Onboarding]
+      summary: Initiate a test call
+      description: Step 5b. Triggers a test call to the customer's phone via Twilio.
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      responses:
+        '200':
+          description: Test call initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  call_sid:
+                    type: string
+                    example: "CA1234567890abcdef1234567890abcdef"
+                  status:
+                    type: string
+                    example: queued
+
+  /onboarding/{customerId}/test-call/{callSid}/status:
+    get:
+      tags: [Onboarding]
+      summary: Get test call status
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+        - name: callSid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Call status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestCallStatus'
+
+  /plans:
+    get:
+      tags: [Public]
+      summary: List available subscription plans
+      responses:
+        '200':
+          description: Plan catalog
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  plans:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Plan'
+
+  /onboarding/{customerId}/select-plan:
+    post:
+      tags: [Onboarding]
+      summary: Select a subscription plan
+      description: Step 6a. Associates a plan tier and billing period.
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [plan_tier, billing_period]
+              properties:
+                plan_tier:
+                  type: string
+                  enum: [starter, professional, enterprise]
+                billing_period:
+                  type: string
+                  enum: [monthly, yearly]
+      responses:
+        '200':
+          description: Plan selected
+
+  /onboarding/{customerId}/complete-payment:
+    post:
+      tags: [Onboarding]
+      summary: Create Stripe checkout session
+      description: |
+        Step 6b. Creates a Stripe Checkout Session and returns
+        the URL for the customer to complete payment.
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      responses:
+        '200':
+          description: Checkout session created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  checkout_url:
+                    type: string
+                    format: uri
+                  dashboard_url:
+                    type: string
+                    format: uri
+
+  # ════════════════════════════════════════════════
+  # DASHBOARD API
+  # ════════════════════════════════════════════════
+
+  /dashboard/{customerId}/overview:
+    get:
+      tags: [Dashboard]
+      summary: Get customer overview
+      description: |
+        Consolidated view: customer info, agent status, phone number,
+        subscription, usage stats, and recent activity.
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      responses:
+        '200':
+          description: Dashboard overview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardOverview'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /dashboard/{customerId}/calls:
+    get:
+      tags: [Dashboard]
+      summary: Get paginated call history
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter calls from this date (ISO 8601)
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter calls until this date (ISO 8601)
+      responses:
+        '200':
+          description: Paginated call list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CallsResponse'
+
+  /dashboard/{customerId}/agent:
+    get:
+      tags: [Dashboard]
+      summary: Get agent settings
+      description: Returns the full agent configuration including voice, prompt, and KB summary.
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      responses:
+        '200':
+          description: Agent settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentSettings'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Dashboard]
+      summary: Update agent settings
+      description: Partial update — only provided fields are modified.
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                agent_name:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                system_prompt:
+                  type: string
+                  maxLength: 50000
+                voice_id:
+                  type: string
+                  maxLength: 200
+                voice_name:
+                  type: string
+                  maxLength: 200
+      responses:
+        '200':
+          description: Agent updated
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /dashboard/{customerId}/agent/pause:
+    post:
+      tags: [Dashboard]
+      summary: Pause agent
+      description: Sets agent status to inactive. Phone number stays provisioned.
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      responses:
+        '200':
+          description: Agent paused
+        '400':
+          description: No active agent found
+
+  /dashboard/{customerId}/agent/resume:
+    post:
+      tags: [Dashboard]
+      summary: Resume agent
+      description: Reactivates a paused agent.
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      responses:
+        '200':
+          description: Agent resumed
+        '400':
+          description: No paused agent found
+
+  /dashboard/{customerId}/billing:
+    get:
+      tags: [Dashboard]
+      summary: Get billing information
+      description: |
+        Subscription details, usage breakdown with overage tracking,
+        daily usage chart data, and Stripe invoices.
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      responses:
+        '200':
+          description: Billing data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillingData'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ════════════════════════════════════════════════
+  # WEBHOOKS
+  # ════════════════════════════════════════════════
+
+  /webhooks/twilio/voice:
+    post:
+      tags: [Onboarding]
+      summary: Twilio voice webhook
+      description: |
+        Receives incoming call events from Twilio, validates the signature,
+        and routes the call to the correct ElevenLabs agent via TwiML.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: TwiML response
+          content:
+            application/xml:
+              schema:
+                type: string
+
+  /webhooks/twilio/status:
+    post:
+      tags: [Onboarding]
+      summary: Twilio call status webhook
+      description: Receives call completion events. Triggers usage tracking.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: OK
+
+  /webhooks/stripe:
+    post:
+      tags: [Onboarding]
+      summary: Stripe webhook
+      description: |
+        Handles Stripe events: checkout.session.completed, invoice.paid,
+        invoice.payment_failed, customer.subscription.updated/deleted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Event processed
+
+components:
+  parameters:
+    CustomerId:
+      name: customerId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Customer UUID
+
+  responses:
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    example: VALIDATION_ERROR
+                  message:
+                    type: string
+                    example: "phone_number must be in E.164 format"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    example: NOT_FOUND
+                  message:
+                    type: string
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    example: INTERNAL_SERVER_ERROR
+                  message:
+                    type: string
+
+  schemas:
+    OnboardingStartResponse:
+      type: object
+      properties:
+        customer_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          example: scraping
+        message:
+          type: string
+
+    Voice:
+      type: object
+      properties:
+        voice_id:
+          type: string
+        name:
+          type: string
+        gender:
+          type: string
+          enum: [male, female]
+        language:
+          type: string
+        preview_url:
+          type: string
+          format: uri
+
+    TestCallStatus:
+      type: object
+      properties:
+        call_sid:
+          type: string
+        status:
+          type: string
+          enum: [queued, ringing, in-progress, completed, failed]
+        duration_seconds:
+          type: integer
+          nullable: true
+        recording_url:
+          type: string
+          nullable: true
+        transcript:
+          type: string
+          nullable: true
+
+    Plan:
+      type: object
+      properties:
+        tier:
+          type: string
+          enum: [starter, professional, enterprise]
+        minutes_included:
+          type: integer
+        price_monthly_eur:
+          type: number
+        price_yearly_eur:
+          type: number
+
+    DashboardOverview:
+      type: object
+      properties:
+        customer:
+          type: object
+          properties:
+            customer_id:
+              type: string
+              format: uuid
+            business_name:
+              type: string
+            industry:
+              type: string
+            status:
+              type: string
+        agent:
+          type: object
+          nullable: true
+          properties:
+            agent_id:
+              type: string
+              format: uuid
+            agent_name:
+              type: string
+            status:
+              type: string
+              enum: [active, inactive, deploying]
+            voice_name:
+              type: string
+            deployed_at:
+              type: string
+              format: date-time
+        phone_number:
+          type: object
+          nullable: true
+          properties:
+            number:
+              type: string
+            country_code:
+              type: string
+        subscription:
+          $ref: '#/components/schemas/SubscriptionSummary'
+        usage:
+          $ref: '#/components/schemas/UsageSummary'
+        recent_calls_7d:
+          type: integer
+
+    CallsResponse:
+      type: object
+      properties:
+        calls:
+          type: array
+          items:
+            $ref: '#/components/schemas/CallRecord'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    CallRecord:
+      type: object
+      properties:
+        usage_id:
+          type: string
+          format: uuid
+        call_sid:
+          type: string
+          nullable: true
+        agent_name:
+          type: string
+        duration_minutes:
+          type: number
+        cost_eur:
+          type: number
+        recorded_at:
+          type: string
+          format: date-time
+        recording_url:
+          type: string
+          nullable: true
+        transcript:
+          type: string
+          nullable: true
+
+    AgentSettings:
+      type: object
+      properties:
+        agent_id:
+          type: string
+          format: uuid
+        elevenlabs_agent_id:
+          type: string
+        agent_name:
+          type: string
+        voice_id:
+          type: string
+        voice_name:
+          type: string
+        system_prompt:
+          type: string
+        conversation_config:
+          type: object
+        status:
+          type: string
+          enum: [active, inactive, deploying]
+        deployed_at:
+          type: string
+          format: date-time
+        knowledge_base:
+          type: object
+          nullable: true
+          properties:
+            status:
+              type: string
+            total_sources:
+              type: integer
+            services_count:
+              type: integer
+            faqs_count:
+              type: integer
+            has_policies:
+              type: boolean
+            has_hours:
+              type: boolean
+
+    BillingData:
+      type: object
+      properties:
+        subscription:
+          type: object
+          properties:
+            subscription_id:
+              type: string
+              format: uuid
+            plan_tier:
+              type: string
+            billing_period:
+              type: string
+              enum: [monthly, yearly]
+            minutes_included:
+              type: integer
+            price_eur:
+              type: number
+            status:
+              type: string
+              enum: [active, trialing, past_due, canceled]
+            current_period_start:
+              type: string
+              format: date-time
+            current_period_end:
+              type: string
+              format: date-time
+        usage:
+          $ref: '#/components/schemas/UsageBreakdown'
+        daily_usage:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              calls:
+                type: integer
+              minutes:
+                type: number
+        invoices:
+          type: array
+          items:
+            $ref: '#/components/schemas/Invoice'
+
+    SubscriptionSummary:
+      type: object
+      nullable: true
+      properties:
+        plan_tier:
+          type: string
+        billing_period:
+          type: string
+        minutes_included:
+          type: integer
+        price_eur:
+          type: number
+        status:
+          type: string
+        current_period_start:
+          type: string
+          format: date-time
+        current_period_end:
+          type: string
+          format: date-time
+
+    UsageSummary:
+      type: object
+      properties:
+        total_calls:
+          type: integer
+        total_minutes:
+          type: number
+        total_cost:
+          type: number
+        minutes_remaining:
+          type: number
+        usage_percentage:
+          type: number
+
+    UsageBreakdown:
+      type: object
+      properties:
+        total_calls:
+          type: integer
+        total_minutes:
+          type: number
+        minutes_included:
+          type: integer
+        minutes_remaining:
+          type: number
+        usage_percentage:
+          type: number
+        overage_minutes:
+          type: number
+        overage_cost_eur:
+          type: number
+
+    Invoice:
+      type: object
+      properties:
+        invoice_id:
+          type: string
+        number:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [paid, open, void, uncollectible]
+        amount_eur:
+          type: number
+        amount_paid_eur:
+          type: number
+        period_start:
+          type: string
+          format: date-time
+        period_end:
+          type: string
+          format: date-time
+        invoice_url:
+          type: string
+          format: uri
+          nullable: true
+        pdf_url:
+          type: string
+          format: uri
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
