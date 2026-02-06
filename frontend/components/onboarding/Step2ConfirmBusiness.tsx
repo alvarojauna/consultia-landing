@@ -20,16 +20,22 @@ export default function Step2ConfirmBusiness() {
   const [services, setServices] = useState(state.services?.join(', ') || '')
   const [hours, setHours] = useState('')
 
-  // Poll for scraping results
+  // Poll for scraping results with proper cleanup
   useEffect(() => {
     if (!state.customerId) return
 
     let attempts = 0
     const maxAttempts = 30 // 30 * 2s = 60s max wait
+    let cancelled = false
+    let timeoutId: ReturnType<typeof setTimeout>
 
     const poll = async () => {
+      if (cancelled) return
+
       try {
         const result = await api.getBusinessStatus(state.customerId!)
+
+        if (cancelled) return
 
         if (result.status === 'complete' && result.scraped_data) {
           const data = result.scraped_data
@@ -57,19 +63,25 @@ export default function Step2ConfirmBusiness() {
           return
         }
 
-        setTimeout(poll, 2000)
+        timeoutId = setTimeout(poll, 2000)
       } catch {
+        if (cancelled) return
         attempts++
         if (attempts >= maxAttempts) {
           setScraperError(true)
           setLoading(false)
           return
         }
-        setTimeout(poll, 2000)
+        timeoutId = setTimeout(poll, 2000)
       }
     }
 
     poll()
+
+    return () => {
+      cancelled = true
+      clearTimeout(timeoutId)
+    }
   }, [state.customerId])
 
   const handleSubmit = async (e: React.FormEvent) => {

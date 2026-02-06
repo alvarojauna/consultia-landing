@@ -5,6 +5,7 @@ import {
   createCorsResponse,
   logRequest,
   validateUUID,
+  getCustomerIdFromAuth,
   ValidationError,
 } from 'consultia-shared-nodejs';
 
@@ -34,7 +35,7 @@ export const handler = async (
     return createCorsResponse();
   }
 
-  logRequest(event);
+  logRequest(event, requestId);
 
   try {
     await initializePool();
@@ -48,6 +49,12 @@ export const handler = async (
 
     // Validate customerId is a proper UUID to prevent path traversal / injection
     const customerId = validateUUID(rawCustomerId, 'customerId');
+
+    // Authorization: verify the authenticated user owns this customerId
+    const authUserId = getCustomerIdFromAuth(event);
+    if (authUserId !== customerId) {
+      return createErrorResponse('FORBIDDEN', 'You do not have access to this resource', 403, null, requestId);
+    }
 
     // ========================================
     // Overview
@@ -97,10 +104,10 @@ export const handler = async (
       return createErrorResponse('VALIDATION_ERROR', error.message, 400, null, requestId);
     }
 
-    console.error('[Dashboard Error]', error);
+    console.error('[Dashboard Error]', { requestId, message: error.message });
     return createErrorResponse(
       'INTERNAL_SERVER_ERROR',
-      error.message || 'An unexpected error occurred',
+      'An unexpected error occurred',
       500,
       null,
       requestId

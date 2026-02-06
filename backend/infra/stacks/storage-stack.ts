@@ -35,7 +35,6 @@ export class StorageStack extends cdk.Stack {
           allowedOrigins: [
             'https://consultia.es',
             'https://*.consultia.es',
-            'http://localhost:3000', // Development
           ],
           allowedHeaders: ['*'],
           maxAge: 3000,

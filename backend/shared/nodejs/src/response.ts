@@ -136,15 +136,13 @@ export function getCustomerIdFromPath(event: any): string {
 }
 
 /**
- * Log request for debugging
+ * Log request for debugging (omits sensitive body/headers)
  */
-export function logRequest(event: any): void {
+export function logRequest(event: any, requestId?: string): void {
   console.log('[API Request]', {
+    requestId: requestId || event.requestContext?.requestId,
     method: event.httpMethod,
     path: event.path,
-    pathParameters: event.pathParameters,
-    queryStringParameters: event.queryStringParameters,
-    requestId: event.requestContext?.requestId,
     sourceIp: event.requestContext?.identity?.sourceIp,
   });
 }

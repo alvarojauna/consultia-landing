@@ -74,14 +74,13 @@ export class ApiStack extends cdk.Stack {
         throttlingBurstLimit: 2000,
         throttlingRateLimit: 1000,
         loggingLevel: apigateway.MethodLoggingLevel.INFO,
-        dataTraceEnabled: true,
+        dataTraceEnabled: false,
         metricsEnabled: true,
       },
       defaultCorsPreflightOptions: {
         allowOrigins: [
           'https://consultia.es',
           'https://*.consultia.es',
-          'http://localhost:3000',
         ],
         allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         allowHeaders: [
@@ -92,18 +91,6 @@ export class ApiStack extends cdk.Stack {
         ],
         allowCredentials: true,
       },
-    });
-
-    // Cognito Authorizer
-    const authorizer = new apigateway.CognitoUserPoolsAuthorizer(this, 'CognitoAuthorizer', {
-      cognitoUserPools: [this.userPool],
-      authorizerName: 'consultia-cognito-authorizer',
-    });
-
-    // Add authorizer as default method options
-    this.api.root.addMethod('ANY', undefined, {
-      authorizer,
-      authorizationType: apigateway.AuthorizationType.COGNITO,
     });
 
     // ========================================

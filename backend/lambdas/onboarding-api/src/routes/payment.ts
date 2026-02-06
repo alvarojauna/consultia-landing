@@ -23,6 +23,8 @@ const selectPlanSchema = Joi.object({
 const completePaymentSchema = Joi.object({
   stripe_payment_method_id: Joi.string().required(),
   stripe_customer_id: Joi.string().optional(),
+  plan_tier: Joi.string().valid('starter', 'professional', 'enterprise').required(),
+  billing_period: Joi.string().valid('monthly', 'yearly').required(),
 });
 
 // Plan pricing (matches frontend)
@@ -103,11 +105,11 @@ export async function handleSelectPlan(
       requestId
     );
   } catch (error: any) {
-    console.error('[Select Plan Error]', error);
+    console.error('[Select Plan Error]', { requestId, message: error.message });
 
     return createErrorResponse(
       'SELECT_PLAN_ERROR',
-      error.message,
+      'Failed to select plan',
       500,
       null,
       requestId
@@ -140,9 +142,9 @@ export async function handleCompletePayment(
       );
     }
 
-    const { stripe_payment_method_id, stripe_customer_id } = value;
+    const { stripe_payment_method_id, stripe_customer_id, plan_tier, billing_period } = value;
 
-    console.log('[Complete Payment]', { customerId, stripe_payment_method_id });
+    console.log('[Complete Payment]', { customerId, plan_tier, billing_period });
 
     // Get customer info
     const customerResult = await query(
@@ -193,11 +195,11 @@ export async function handleCompletePayment(
       console.log('[Complete Payment] Stripe customer created', { stripeCustomerId });
     }
 
-    // Get plan details from request (should match what was selected in select-plan)
-    // For now, hardcode to professional monthly (will read from customer metadata in production)
-    const plan_tier = 'professional' as keyof typeof PLANS;
-    const billing_period: 'monthly' | 'yearly' = 'monthly';
-    const planPricing = PLANS[plan_tier][billing_period];
+    // Look up server-side pricing (never trust client-sent prices)
+    const planPricing = PLANS[plan_tier as keyof typeof PLANS]?.[billing_period as keyof typeof PLANS['starter']];
+    if (!planPricing) {
+      return createErrorResponse('INVALID_PLAN', 'Invalid plan or billing period', 400, null, requestId);
+    }
 
     // Create Stripe subscription
     console.log('[Complete Payment] Creating Stripe subscription');
@@ -209,7 +211,7 @@ export async function handleCompletePayment(
         currency: 'eur',
         unit_amount: (planPricing.price_eur * 100).toString(), // Convert to cents
         recurring: JSON.stringify({
-          interval: 'month', // TODO: Support yearly billing
+          interval: billing_period === 'yearly' ? 'year' : 'month',
         }),
         product_data: JSON.stringify({
           name: `ConsultIA ${plan_tier.charAt(0).toUpperCase() + plan_tier.slice(1)} Plan`,
@@ -323,20 +325,23 @@ export async function handleCompletePayment(
   } catch (error: any) {
     console.error('[Complete Payment Error]', error);
 
-    // Handle Stripe API errors
-    if (error.response?.data) {
+    // Handle Stripe API errors (expose Stripe user-facing message, not internals)
+    if (error.response?.data?.error) {
+      const stripeError = error.response.data.error;
+      console.error('[Stripe Error]', { requestId, type: stripeError.type, code: stripeError.code });
       return createErrorResponse(
-        'STRIPE_ERROR',
-        error.response.data.error?.message || 'Payment failed',
+        'PAYMENT_FAILED',
+        stripeError.message || 'Payment failed. Please try again.',
         400,
-        { stripe_error: error.response.data.error },
+        null,
         requestId
       );
     }
 
+    console.error('[Complete Payment Error]', { requestId, message: error.message });
     return createErrorResponse(
       'COMPLETE_PAYMENT_ERROR',
-      error.message,
+      'Payment processing failed',
       500,
       null,
       requestId

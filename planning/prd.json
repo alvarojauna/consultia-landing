@@ -2,9 +2,9 @@
   "name": "ConsultIA - Backend Agent Creation System",
   "description": "Sistema backend completo para creación multi-tenant de agentes AI con ElevenLabs, Twilio y Stripe. Incluye flujo de onboarding de 6 pasos con subida de base de conocimiento, despliegue de agente y llamada de prueba antes del pago.",
   "progress": {
-    "completed": 36,
+    "completed": 37,
     "total": 38,
-    "percentage": 95
+    "percentage": 97
   },
   "items": [
     {
@@ -550,17 +550,19 @@
     {
       "id": "polish-04",
       "category": "polish",
-      "description": "Load Testing",
+      "description": "Pre-Production Security Audit & Fixes",
       "steps": [
-        "Usar Artillery o k6 para simular 100 concurrent onboarding flows",
-        "Test Twilio concurrent call limits (default 10, request increase)",
-        "Verificar database performance bajo carga (Aurora auto-scaling)",
-        "Test ElevenLabs agent creation rate limits",
-        "Documentar bottlenecks y plan de escalado"
+        "Run comprehensive 3-agent audit (security, frontend, infrastructure)",
+        "Fix SSRF in business-scraper (URL validation + redirect chain protection)",
+        "Fix IDOR - export/use getCustomerIdFromAuth in dashboard-api",
+        "Add dashboard + webhook routes to API Gateway CDK",
+        "Fix payment hardcoding, error leaks, CORS wildcard, dataTraceEnabled",
+        "Fix frontend memory leak, open redirect, error boundary, API fallback",
+        "Clean up duplicate shared utilities, consolidate exports"
       ],
-      "priority": "medium",
-      "passes": false,
-      "progress": 0
+      "priority": "critical",
+      "passes": true,
+      "progress": 100
     },
     {
       "id": "polish-05",

@@ -248,6 +248,8 @@ export interface SelectPlanRequest {
 export interface CompletePaymentRequest {
   stripe_payment_method_id: string;
   stripe_customer_id?: string;
+  plan_tier: 'starter' | 'professional' | 'enterprise';
+  billing_period: 'monthly' | 'yearly';
 }
 
 // ========================================

@@ -17,19 +17,23 @@ export {
 // TypeScript types
 export * from './types';
 
-// Response helpers
-export { createSuccessResponse, createErrorResponse } from './response';
+// Response helpers (canonical versions — consistent CORS headers)
+export {
+  createSuccessResponse,
+  createErrorResponse,
+  createCorsResponse,
+  parseBody,
+  getCustomerIdFromAuth,
+  getCustomerIdFromPath,
+  logRequest,
+} from './response';
 
 // Secrets Manager
 export { getSecret } from './secrets';
 
-// Utilities
+// Utilities (only exports unique to utilities.ts)
 export {
-  parseBody,
-  getCustomerIdFromPath,
   getApiKeys,
-  createCorsResponse,
-  logRequest,
   validateRequiredFields,
   getUserIdFromEvent,
 } from './utilities';

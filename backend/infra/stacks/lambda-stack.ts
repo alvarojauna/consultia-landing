@@ -22,6 +22,8 @@ interface LambdaStackProps extends cdk.StackProps {
 
 export class LambdaStack extends cdk.Stack {
   public readonly onboardingApiFunction: lambda.Function;
+  public readonly dashboardApiFunction: lambda.Function;
+  public readonly webhookApiFunction: lambda.Function;
   public readonly kbProcessorFunction: lambda.Function;
   public readonly createAgentFunction: lambda.Function;
   public readonly provisionNumberFunction: lambda.Function;
@@ -65,12 +67,90 @@ export class LambdaStack extends cdk.Stack {
     props.knowledgeBaseBucket.grantReadWrite(this.onboardingApiFunction);
     props.database.connections.allowDefaultPortFrom(this.onboardingApiFunction);
 
-    // Integrate with API Gateway
+    // Cognito authorizer for protected routes
+    const cognitoAuthorizer = new apigateway.CognitoUserPoolsAuthorizer(this, 'LambdaCognitoAuth', {
+      cognitoUserPools: [props.userPool],
+    });
+
+    // Integrate with API Gateway — onboarding (public + auth routes)
     const onboardingResource = props.api.root.addResource('onboarding');
-    onboardingResource.addMethod(
-      'ANY',
-      new apigateway.LambdaIntegration(this.onboardingApiFunction)
-    );
+    const onboardingIntegration = new apigateway.LambdaIntegration(this.onboardingApiFunction);
+
+    // POST /onboarding/business-info (public — no auth)
+    onboardingResource.addResource('business-info').addMethod('POST', onboardingIntegration);
+
+    // /onboarding/{customerId}/{proxy+} — catch-all for sub-paths
+    const onboardingCustomer = onboardingResource.addResource('{customerId}');
+    onboardingCustomer.addProxy({
+      defaultIntegration: onboardingIntegration,
+      anyMethod: true,
+    });
+
+    // GET /voices (public)
+    props.api.root.addResource('voices').addMethod('GET', onboardingIntegration);
+
+    // GET /plans (public)
+    props.api.root.addResource('plans').addMethod('GET', onboardingIntegration);
+
+    // ========================================
+    // Lambda: Dashboard API
+    // ========================================
+    this.dashboardApiFunction = new lambda.Function(this, 'DashboardApiFunction', {
+      functionName: 'consultia-dashboard-api',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset('../lambdas/dashboard-api/dist'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 512,
+      layers: [sharedLayer],
+      environment: {
+        DB_SECRET_NAME: props.databaseSecret.secretName,
+        FRONTEND_URL: 'https://consultia.es',
+        API_KEYS_SECRET_NAME: 'consultia/production/api-keys',
+      },
+    });
+
+    props.databaseSecret.grantRead(this.dashboardApiFunction);
+    props.database.connections.allowDefaultPortFrom(this.dashboardApiFunction);
+
+    // API Gateway: /dashboard/{customerId}/{proxy+} (requires Cognito auth)
+    const dashboardResource = props.api.root.addResource('dashboard');
+    const dashboardCustomer = dashboardResource.addResource('{customerId}');
+    dashboardCustomer.addProxy({
+      defaultIntegration: new apigateway.LambdaIntegration(this.dashboardApiFunction),
+      anyMethod: true,
+      defaultMethodOptions: {
+        authorizer: cognitoAuthorizer,
+        authorizationType: apigateway.AuthorizationType.COGNITO,
+      },
+    });
+
+    // ========================================
+    // Lambda: Webhooks (Stripe + Twilio — NO auth)
+    // ========================================
+    this.webhookApiFunction = new lambda.Function(this, 'WebhookApiFunction', {
+      functionName: 'consultia-webhook-api',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset('../lambdas/webhook-api/dist'),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      layers: [sharedLayer],
+      environment: {
+        DB_SECRET_NAME: props.databaseSecret.secretName,
+        API_KEYS_SECRET_NAME: 'consultia/production/api-keys',
+      },
+    });
+
+    props.databaseSecret.grantRead(this.webhookApiFunction);
+    props.database.connections.allowDefaultPortFrom(this.webhookApiFunction);
+
+    // API Gateway: /webhooks/{proxy+} (NO Cognito — Stripe/Twilio verify via signatures)
+    const webhooksResource = props.api.root.addResource('webhooks');
+    webhooksResource.addProxy({
+      defaultIntegration: new apigateway.LambdaIntegration(this.webhookApiFunction),
+      anyMethod: true,
+    });
 
     // ========================================
     // Lambda: Knowledge Base Processor (Python)

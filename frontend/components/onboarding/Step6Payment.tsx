@@ -66,8 +66,17 @@ export default function Step6Payment() {
       const result = await api.createCheckoutSession(state.customerId!)
 
       if (result.checkout_url) {
-        // Redirect to Stripe-hosted checkout page
-        window.location.href = result.checkout_url
+        // Validate the URL is a legitimate Stripe checkout page (prevent open redirect)
+        try {
+          const url = new URL(result.checkout_url)
+          if (!url.hostname.endsWith('.stripe.com')) {
+            throw new Error('URL de pago no válida')
+          }
+          window.location.href = result.checkout_url
+        } catch {
+          setError('URL de pago no válida. Contacta con soporte.')
+          setSaving(false)
+        }
         return
       }
 

@@ -18,6 +18,9 @@ import json
 import logging
 import os
 import re
+import ipaddress
+import socket
+from urllib.parse import urlparse, urljoin
 import boto3
 import requests
 import psycopg2
@@ -109,6 +112,59 @@ def strip_html_noise(html: str) -> str:
     return html.strip()
 
 
+def validate_url_safe(url: str) -> str:
+    """
+    Validate that a URL is safe to fetch (not pointing to internal/private resources).
+
+    Blocks:
+    - Private IP ranges (10.x, 172.16-31.x, 192.168.x)
+    - Loopback (127.x, localhost)
+    - Link-local / AWS metadata (169.254.x)
+    - IPv6 private ranges
+
+    Returns:
+        The validated URL
+
+    Raises:
+        ValueError if the URL points to a private/reserved address
+    """
+    # Normalize URL
+    if not url.startswith(('http://', 'https://')):
+        url = f'https://{url}'
+
+    parsed = urlparse(url)
+
+    if parsed.scheme not in ('http', 'https'):
+        raise ValueError(f"Unsupported URL scheme: {parsed.scheme}")
+
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError("URL has no hostname")
+
+    # Block obvious dangerous hostnames (including AWS/GCP metadata alternatives)
+    blocked_hostnames = {
+        'localhost', '0.0.0.0', '[::1]',
+        'metadata.google.internal',
+        'metadata.aws.amazon.com',
+        'instance-data',
+        'instance-data.ec2.internal',
+    }
+    if hostname.lower() in blocked_hostnames:
+        raise ValueError(f"Blocked hostname: {hostname}")
+
+    # Resolve hostname to IP and check if it's private/reserved
+    try:
+        resolved_ips = socket.getaddrinfo(hostname, None)
+        for family, _, _, _, sockaddr in resolved_ips:
+            ip = ipaddress.ip_address(sockaddr[0])
+            if ip.is_private or ip.is_reserved or ip.is_loopback or ip.is_link_local:
+                raise ValueError(f"URL resolves to blocked IP range: {ip}")
+    except socket.gaierror:
+        raise ValueError(f"Cannot resolve hostname: {hostname}")
+
+    return url
+
+
 def fetch_website(url: str) -> str:
     """
     Fetch website HTML content.
@@ -124,13 +180,24 @@ def fetch_website(url: str) -> str:
     """
     session = get_http_session()
 
-    # Normalize URL
-    if not url.startswith(('http://', 'https://')):
-        url = f'https://{url}'
+    # Validate URL is safe (blocks SSRF to internal networks / AWS metadata)
+    url = validate_url_safe(url)
 
     logger.info(f"[Scraper] Fetching {url}")
 
-    response = session.get(url, timeout=20, allow_redirects=True)
+    response = session.get(url, timeout=20, allow_redirects=False)
+
+    # Follow redirects manually, validating each target against SSRF
+    max_redirects = 5
+    for _ in range(max_redirects):
+        if not response.is_redirect or 'Location' not in response.headers:
+            break
+        redirect_url = response.headers['Location']
+        # Resolve relative redirects (e.g. "/path") against current URL
+        redirect_url = urljoin(url, redirect_url)
+        redirect_url = validate_url_safe(redirect_url)
+        url = redirect_url
+        response = session.get(redirect_url, timeout=20, allow_redirects=False)
     response.raise_for_status()
 
     # Get encoding from response or default to utf-8
@@ -360,6 +427,11 @@ def lambda_handler(event, context):
                 update_business_info(customer_id, business_data)
 
                 logger.info(f"[Scraper] Successfully scraped {website} for customer {customer_id}")
+
+            except ValueError as e:
+                error_msg = f"Invalid URL {website}: {str(e)[:200]}"
+                logger.warning(f"[Scraper] {error_msg}")
+                update_scraping_error(customer_id, error_msg)
 
             except requests.exceptions.Timeout:
                 error_msg = f"Timeout fetching {website} (20s limit)"

@@ -994,11 +994,27 @@ await stripe.subscriptionItems.createUsageRecord(
 - [x] Error handling & retries — shared `withRetry()` utility with exponential backoff + jitter, `ValidationError` class in both API Lambdas (polish-01)
 - [x] Security hardening — input validation (UUID, phone, string, int, date, enum), XSS sanitization on agent updates, removed stack trace leakage (polish-02)
 - [x] API documentation — OpenAPI 3.0 spec covering all onboarding + dashboard + webhook endpoints (polish-03)
-- [ ] Load testing — 100 concurrent onboardings (polish-04)
+- [x] Pre-production security audit — comprehensive 3-agent audit + fixes (polish-04)
 - [ ] Production deployment (polish-05)
 - [ ] Launch to 10 beta customers in Bilbao
 
-**Overall Progress**: 95% (36/38 PRD items complete)
+#### Pre-Production Audit Fixes (polish-04)
+Comprehensive audit of 38 backend + 31 frontend files. Fixed:
+- **SSRF protection**: `validate_url_safe()` in business-scraper blocks private IPs, metadata endpoints, redirect chains
+- **IDOR fix**: `getCustomerIdFromAuth()` exported + used in dashboard-api to verify JWT ownership
+- **CDK routes**: Added dashboard-api Lambda, webhook-api Lambda, API Gateway proxy resources for `/dashboard`, `/webhooks`
+- **Payment fix**: Removed hardcoded plan tier, now uses request `plan_tier`/`billing_period` with server-side pricing
+- **Yearly billing**: Stripe interval now supports `'year'` when `billing_period === 'yearly'`
+- **Error masking**: All 500 responses return generic message, Stripe internals hidden
+- **CORS fix**: Removed wildcard `*` from utilities.ts, removed `localhost:3000` from prod (API Gateway + S3)
+- **dataTraceEnabled**: Set to `false` in API Gateway (was logging full request/response bodies)
+- **Duplicate cleanup**: Consolidated shared exports — `response.ts` canonical for CORS/parseBody/logRequest
+- **Frontend**: Step2 memory leak fix (useEffect cleanup), Step6 open redirect prevention (Stripe hostname validation)
+- **Error pages**: Created `error.tsx` (error boundary) and `not-found.tsx` (404 page)
+- **API client**: Removed dangerous fallback to production URL when env var not set
+- **Type safety**: Added `plan_tier`/`billing_period` to `CompletePaymentRequest` type
+
+**Overall Progress**: 97% (37/38 PRD items complete)
 
 ### Backend Lambda Status (All 8 Implemented)
 
@@ -1089,5 +1105,5 @@ await stripe.subscriptionItems.createUsageRecord(
 ---
 
 **Last Updated**: 2026-02-06
-**Version**: 6.0 (Polish: error handling, security, API docs)
-**Status**: Landing page, all 8 backend Lambda functions, 6 onboarding steps, full dashboard, shared retry/validation libraries, and OpenAPI spec. Pending: load testing & production deployment (2 items).
+**Version**: 7.0 (Pre-production security audit + fixes)
+**Status**: Landing page, all 8 backend Lambda functions, 6 onboarding steps, full dashboard, shared retry/validation libraries, OpenAPI spec, and comprehensive security hardening. Pending: production deployment (1 item).

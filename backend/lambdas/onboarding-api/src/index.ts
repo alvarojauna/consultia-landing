@@ -243,11 +243,11 @@ export const handler = async (
       return createErrorResponse('VALIDATION_ERROR', error.message, 400, null, requestId);
     }
 
-    console.error('[Lambda Error]', error);
+    console.error('[Lambda Error]', { requestId, message: error.message });
 
     return createErrorResponse(
       'INTERNAL_SERVER_ERROR',
-      error.message || 'An unexpected error occurred',
+      'An unexpected error occurred',
       500,
       null,
       requestId
