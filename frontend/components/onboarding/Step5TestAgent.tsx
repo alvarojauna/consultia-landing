@@ -18,32 +18,43 @@ export default function Step5TestAgent() {
   const [error, setError] = useState('')
   const [initiatingCall, setInitiatingCall] = useState(false)
   const pollRef = useRef<NodeJS.Timeout | null>(null)
+  const mountedRef = useRef(true)
 
   useEffect(() => {
     return () => {
+      mountedRef.current = false
       if (pollRef.current) clearTimeout(pollRef.current)
     }
   }, [])
 
   // Start deployment on mount
   useEffect(() => {
+    let cancelled = false
+
     const deploy = async () => {
       try {
         const result = await api.deployAgent(state.customerId!)
+        if (cancelled) return
         updateState({ agentId: result.agent_id })
         pollDeployStatus()
       } catch (err: any) {
-        setError(err.message || 'Error al desplegar el agente')
+        if (!cancelled) {
+          setError(err.message || 'Error al desplegar el agente')
+        }
       }
     }
 
     deploy()
+
+    return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const pollDeployStatus = useCallback(async () => {
+    if (!mountedRef.current) return
     try {
       const status = await api.getDeployStatus(state.customerId!)
+      if (!mountedRef.current) return
       setDeployStatus(status)
 
       if (status.status === 'complete') {
@@ -62,7 +73,9 @@ export default function Step5TestAgent() {
 
       pollRef.current = setTimeout(pollDeployStatus, 3000)
     } catch {
-      pollRef.current = setTimeout(pollDeployStatus, 5000)
+      if (mountedRef.current) {
+        pollRef.current = setTimeout(pollDeployStatus, 5000)
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.customerId])
@@ -90,8 +103,10 @@ export default function Step5TestAgent() {
 
   const pollCallStatus = useCallback(
     async (sid: string) => {
+      if (!mountedRef.current) return
       try {
         const status = await api.getTestCallStatus(state.customerId!, sid)
+        if (!mountedRef.current) return
         setCallStatus(status)
 
         if (status.status === 'completed' || status.status === 'failed' || status.status === 'no-answer') {
@@ -101,7 +116,9 @@ export default function Step5TestAgent() {
 
         pollRef.current = setTimeout(() => pollCallStatus(sid), 2000)
       } catch {
-        pollRef.current = setTimeout(() => pollCallStatus(sid), 4000)
+        if (mountedRef.current) {
+          pollRef.current = setTimeout(() => pollCallStatus(sid), 4000)
+        }
       }
     },
     [state.customerId]

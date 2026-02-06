@@ -35,10 +35,12 @@ export default function Step4KnowledgeBase() {
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pollRef = useRef<NodeJS.Timeout | null>(null)
+  const mountedRef = useRef(true)
 
   // Cleanup polling on unmount
   useEffect(() => {
     return () => {
+      mountedRef.current = false
       if (pollRef.current) clearTimeout(pollRef.current)
     }
   }, [])
@@ -75,8 +77,10 @@ export default function Step4KnowledgeBase() {
   )
 
   const pollStatus = useCallback(async () => {
+    if (!mountedRef.current) return
     try {
       const status = await api.getKBStatus(state.customerId!)
+      if (!mountedRef.current) return
       setKbStatus(status)
 
       if (status.status === 'complete') {
@@ -93,7 +97,9 @@ export default function Step4KnowledgeBase() {
       // Keep polling
       pollRef.current = setTimeout(pollStatus, 3000)
     } catch {
-      pollRef.current = setTimeout(pollStatus, 5000)
+      if (mountedRef.current) {
+        pollRef.current = setTimeout(pollStatus, 5000)
+      }
     }
   }, [state.customerId])
 

@@ -9,7 +9,7 @@ export default function Step6Payment() {
   const { state, updateState } = useOnboarding()
   const [plans, setPlans] = useState<Plan[]>([])
   const [selectedTier, setSelectedTier] = useState(state.planTier || '')
-  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>(state.billingPeriod)
+  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>(state.billingPeriod || 'monthly')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -49,7 +49,7 @@ export default function Step6Payment() {
     setError('')
 
     try {
-      // Step 1: Select plan
+      // Step 1: Select plan on backend
       await api.selectPlan(
         state.customerId!,
         selectedTier,
@@ -62,8 +62,16 @@ export default function Step6Payment() {
         billingPeriod,
       })
 
-      // Step 2: Complete payment (backend handles Stripe checkout redirect)
-      const result = await api.completePayment(state.customerId!, '')
+      // Step 2: Create Stripe Checkout Session and redirect
+      const result = await api.createCheckoutSession(state.customerId!)
+
+      if (result.checkout_url) {
+        // Redirect to Stripe-hosted checkout page
+        window.location.href = result.checkout_url
+        return
+      }
+
+      // If no checkout URL (e.g. trial/free plan), go directly to dashboard
       setDashboardUrl(result.dashboard_url)
       setCompleted(true)
     } catch (err: any) {

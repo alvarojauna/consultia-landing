@@ -252,10 +252,9 @@ export const api = {
       body: JSON.stringify({ plan_tier: tier, billing_period: period, minutes_included: minutes }),
     }),
 
-  completePayment: (customerId: string, paymentMethodId: string) =>
-    request<{ dashboard_url: string }>(`/onboarding/${customerId}/complete-payment`, {
+  createCheckoutSession: (customerId: string) =>
+    request<{ checkout_url: string; dashboard_url: string }>(`/onboarding/${customerId}/create-checkout`, {
       method: 'POST',
-      body: JSON.stringify({ stripe_payment_method_id: paymentMethodId }),
     }),
 }
 
