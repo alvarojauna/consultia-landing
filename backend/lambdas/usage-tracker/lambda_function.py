@@ -40,6 +40,9 @@ stripe_initialized = False
 # Cost per overage minute in EUR
 OVERAGE_PRICE_PER_MINUTE = Decimal('0.15')
 
+# Calls shorter than this are hangups/accidents and not billed
+MIN_BILLABLE_DURATION_SECONDS = 3
+
 
 def get_db_connection():
     """Get PostgreSQL connection (with caching)"""
@@ -189,47 +192,65 @@ def record_usage(
 
     # Convert to minutes with 3 decimal precision
     quantity_minutes = round(duration_seconds / 60.0, 3)
-
-    # Calculate if this call pushes the customer over their quota
-    minutes_before = sub_info['total_minutes_used']
-    minutes_after = minutes_before + quantity_minutes
     minutes_included = sub_info['minutes_included']
 
-    # Calculate overage for this specific call
-    overage_minutes = 0.0
-    if minutes_after > minutes_included:
-        if minutes_before >= minutes_included:
-            # Already over quota — entire call is overage
-            overage_minutes = quantity_minutes
-        else:
-            # This call crosses the threshold
-            overage_minutes = minutes_after - minutes_included
-
-    overage_minutes = round(overage_minutes, 3)
-    total_cost = round(Decimal(str(overage_minutes)) * OVERAGE_PRICE_PER_MINUTE, 2)
-
+    # Use atomic CTE to prevent race conditions when concurrent calls
+    # arrive — the SUM is computed inside the INSERT so another concurrent
+    # insert will block on the row lock until this transaction commits.
     cursor.execute("""
+        WITH current_usage AS (
+            SELECT COALESCE(SUM(quantity), 0) AS total_used
+            FROM usage_records
+            WHERE customer_id = %s
+              AND billing_period_start = %s
+              AND billing_period_end = %s
+            FOR UPDATE
+        ),
+        overage_calc AS (
+            SELECT
+                CASE
+                    WHEN (cu.total_used + %s) > %s THEN
+                        CASE
+                            WHEN cu.total_used >= %s THEN %s
+                            ELSE ROUND(((cu.total_used + %s) - %s)::numeric, 3)
+                        END
+                    ELSE 0.0
+                END AS overage_minutes
+            FROM current_usage cu
+        )
         INSERT INTO usage_records (
             subscription_id, customer_id, agent_id,
             usage_type, quantity, unit_price_eur, total_cost_eur,
             call_sid, billing_period_start, billing_period_end
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        RETURNING usage_id
+        )
+        SELECT %s, %s, %s, 'call_minutes', %s,
+               CASE WHEN oc.overage_minutes > 0 THEN %s ELSE 0 END,
+               ROUND((oc.overage_minutes * %s)::numeric, 2),
+               %s, %s, %s
+        FROM overage_calc oc
+        RETURNING usage_id, total_cost_eur
     """, (
-        sub_info['subscription_id'],
-        customer_id,
-        agent_id,
-        'call_minutes',
+        # current_usage CTE
+        customer_id, sub_info['period_start'], sub_info['period_end'],
+        # overage_calc CTE
+        quantity_minutes, minutes_included,  # total + qty > included?
+        minutes_included, quantity_minutes,  # already over: full qty
+        quantity_minutes, minutes_included,  # crosses threshold: partial
+        # INSERT values
+        sub_info['subscription_id'], customer_id, agent_id,
         quantity_minutes,
-        float(OVERAGE_PRICE_PER_MINUTE) if overage_minutes > 0 else 0,
-        float(total_cost),
-        call_sid,
-        sub_info['period_start'],
-        sub_info['period_end'],
+        float(OVERAGE_PRICE_PER_MINUTE),  # unit_price if overage
+        float(OVERAGE_PRICE_PER_MINUTE),  # for cost calc
+        call_sid, sub_info['period_start'], sub_info['period_end'],
     ))
 
-    usage_id = cursor.fetchone()[0]
+    row = cursor.fetchone()
+    usage_id = row[0]
+    total_cost = float(row[1])
     conn.commit()
+
+    # Calculate overage for Stripe reporting (from returned cost)
+    overage_minutes = round(total_cost / float(OVERAGE_PRICE_PER_MINUTE), 3) if total_cost > 0 else 0.0
     cursor.close()
 
     logger.info(f"[Usage] Recorded {quantity_minutes} min for {customer_id} "
@@ -321,8 +342,8 @@ def lambda_handler(event, context):
             logger.info(f"[Usage] Processing call {call_sid}: "
                         f"{duration_seconds}s for customer {customer_id}")
 
-            # Skip very short calls (< 3 seconds = likely hangups)
-            if duration_seconds < 3:
+            # Skip very short calls (likely hangups/accidents)
+            if duration_seconds < MIN_BILLABLE_DURATION_SECONDS:
                 logger.info(f"[Usage] Skipping short call ({duration_seconds}s)")
                 continue
 

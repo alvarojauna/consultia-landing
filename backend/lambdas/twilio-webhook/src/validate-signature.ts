@@ -28,9 +28,12 @@ export function parseTwilioBody(body: string): Record<string, string> {
 
   const pairs = body.split('&');
   for (const pair of pairs) {
-    const [key, value] = pair.split('=').map(decodeURIComponent);
+    const eqIdx = pair.indexOf('=');
+    if (eqIdx === -1) continue;
+    const key = decodeURIComponent(pair.slice(0, eqIdx));
+    const value = decodeURIComponent(pair.slice(eqIdx + 1));
     if (key) {
-      params[key] = value || '';
+      params[key] = value;
     }
   }
 

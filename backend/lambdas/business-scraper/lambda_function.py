@@ -268,7 +268,7 @@ def update_business_info(customer_id: str, scraped_data: Dict[str, Any], status:
             services,
             json.dumps(hours) if hours else None,
             json.dumps(contacts),
-            [json.dumps(loc) for loc in locations] if locations else None,
+            json.dumps(locations) if locations else None,
             customer_id
         ))
 
