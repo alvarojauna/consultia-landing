@@ -8,7 +8,7 @@
  */
 
 interface RetryOptions {
-  /** Maximum number of retry attempts (default: 3) */
+  /** Maximum number of retry attempts after the initial try (default: 3, so 4 total tries) */
   maxRetries?: number;
   /** Base delay in milliseconds (default: 1000) */
   baseDelayMs?: number;
@@ -54,15 +54,16 @@ export async function withRetry<T>(
       // Don't retry on the last attempt
       if (attempt >= opts.maxRetries) break;
 
-      // Check if we should retry this error type
+      // When retryOn is specified, ONLY retry those specific codes
       if (opts.retryOn && opts.retryOn.length > 0) {
         const errorCode = error.code || error.statusCode || error.status;
         if (!opts.retryOn.includes(String(errorCode))) break;
+      } else {
+        // Default behavior: only retry on transient/server errors
+        const status = error.statusCode || error.status || error.response?.status;
+        const RETRYABLE_STATUSES = [408, 423, 429, 500, 502, 503, 504];
+        if (status && !RETRYABLE_STATUSES.includes(status)) break;
       }
-
-      // Don't retry on client errors (4xx) — only server/network errors
-      const status = error.statusCode || error.status || error.response?.status;
-      if (status && status >= 400 && status < 500 && status !== 429) break;
 
       // Calculate delay with exponential backoff
       let delayMs = Math.min(

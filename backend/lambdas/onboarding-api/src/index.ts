@@ -5,6 +5,7 @@ import {
   createErrorResponse,
   createCorsResponse,
   logRequest,
+  validateUUID,
   ValidationError,
 } from 'consultia-shared-nodejs';
 
@@ -60,6 +61,13 @@ export const handler = async (
 
     const { httpMethod, path } = event;
 
+    // Validate customerId for all routes that include it in the path.
+    // Public routes (/onboarding/business-info, /voices, /plans) skip this.
+    const rawCustomerId = event.pathParameters?.customerId;
+    if (rawCustomerId) {
+      validateUUID(rawCustomerId, 'customerId');
+    }
+
     // Route to appropriate handler
     // ========================================
     // Step 1: Business Information
@@ -72,15 +80,8 @@ export const handler = async (
       httpMethod === 'GET' &&
       path.match(/^\/onboarding\/[^/]+\/business-status$/)
     ) {
-      const customerId = event.pathParameters?.customerId;
-      if (!customerId) {
-        return createErrorResponse(
-          'INVALID_REQUEST',
-          'customerId is required',
-          400,
-          null,
-          requestId
-        );
+      if (!rawCustomerId) {
+        return createErrorResponse('INVALID_REQUEST', 'customerId is required', 400, null, requestId);
       }
       // TODO: Implement getBusinessStatus handler
       return createSuccessResponse(
@@ -136,17 +137,10 @@ export const handler = async (
       httpMethod === 'GET' &&
       path.match(/^\/onboarding\/[^/]+\/knowledge-base\/status$/)
     ) {
-      const customerId = event.pathParameters?.customerId;
-      if (!customerId) {
-        return createErrorResponse(
-          'INVALID_REQUEST',
-          'customerId is required',
-          400,
-          null,
-          requestId
-        );
+      if (!rawCustomerId) {
+        return createErrorResponse('INVALID_REQUEST', 'customerId is required', 400, null, requestId);
       }
-      return await getKnowledgeBaseStatus(customerId, requestId);
+      return await getKnowledgeBaseStatus(rawCustomerId, requestId);
     }
 
     // ========================================
@@ -163,35 +157,21 @@ export const handler = async (
       httpMethod === 'GET' &&
       path.match(/^\/onboarding\/[^/]+\/deploy-status$/)
     ) {
-      const customerId = event.pathParameters?.customerId;
-      if (!customerId) {
-        return createErrorResponse(
-          'INVALID_REQUEST',
-          'customerId is required',
-          400,
-          null,
-          requestId
-        );
+      if (!rawCustomerId) {
+        return createErrorResponse('INVALID_REQUEST', 'customerId is required', 400, null, requestId);
       }
-      return await getDeployStatus(customerId, requestId);
+      return await getDeployStatus(rawCustomerId, requestId);
     }
 
     if (
       httpMethod === 'GET' &&
       path.match(/^\/onboarding\/[^/]+\/test-call\/[^/]+\/status$/)
     ) {
-      const customerId = event.pathParameters?.customerId;
       const callSid = event.pathParameters?.callSid;
-      if (!customerId || !callSid) {
-        return createErrorResponse(
-          'INVALID_REQUEST',
-          'customerId and callSid are required',
-          400,
-          null,
-          requestId
-        );
+      if (!rawCustomerId || !callSid) {
+        return createErrorResponse('INVALID_REQUEST', 'customerId and callSid are required', 400, null, requestId);
       }
-      return await getTestCallStatus(customerId, callSid, requestId);
+      return await getTestCallStatus(rawCustomerId, callSid, requestId);
     }
 
     if (

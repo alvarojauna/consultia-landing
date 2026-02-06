@@ -105,7 +105,7 @@ export async function updateAgentSettings(
   }
 
   if (payload.voice_id !== undefined) {
-    const voiceId = validateString(payload.voice_id, 'voice_id', { maxLength: 200 });
+    const voiceId = sanitizeString(validateString(payload.voice_id, 'voice_id', { maxLength: 200 }));
     updates.push(`voice_id = $${paramIdx}`);
     params.push(voiceId);
     paramIdx++;

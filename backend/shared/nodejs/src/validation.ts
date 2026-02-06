@@ -14,8 +14,8 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 /** E.164 phone number: + followed by 1-15 digits */
 const PHONE_REGEX = /^\+[1-9]\d{1,14}$/;
 
-/** Safe string: no script tags, null bytes, or control characters */
-const UNSAFE_PATTERN = /<script|<\/script|javascript:|on\w+\s*=|\x00/i;
+/** Unsafe content: script tags (including encoded variants), event handlers, dangerous URIs, null bytes */
+const UNSAFE_PATTERN = /<script|<\/script|javascript:|data:text\/html|vbscript:|on\w+\s*=|&#60;|&#x3c;|%3c(?:script|\/script)|\\u003c|\x00/i;
 
 export function validateUUID(value: string, fieldName: string): string {
   if (!value || !UUID_REGEX.test(value)) {
@@ -59,12 +59,7 @@ export function validateString(
 
 export function sanitizeString(value: string): string {
   if (UNSAFE_PATTERN.test(value)) {
-    // Strip dangerous patterns instead of rejecting entirely
-    return value
-      .replace(/<script[^>]*>.*?<\/script>/gi, '')
-      .replace(/javascript:/gi, '')
-      .replace(/on\w+\s*=/gi, '')
-      .replace(/\x00/g, '');
+    throw new ValidationError('Input contains potentially unsafe content');
   }
   return value;
 }
@@ -114,7 +109,7 @@ export function validateEnum<T extends string>(
   if (!value) {
     if (opts.defaultValue !== undefined) return opts.defaultValue;
     if (opts.required) throw new ValidationError(`${fieldName} is required`);
-    return opts.defaultValue as T;
+    throw new ValidationError(`${fieldName} must be one of: ${allowed.join(', ')}`);
   }
 
   if (!allowed.includes(value as T)) {
