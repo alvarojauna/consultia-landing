@@ -523,10 +523,10 @@ enterprises (1) → customers (N) → agents (1)
 
 **Backend Process**:
 1. Create customer record in `customers` table
-2. Trigger `business-scraper` Lambda
-3. Scrape website with BeautifulSoup/Playwright
-4. Extract: name, address, services, hours, contact
-5. Store in `business_info` table with status "pending_confirmation"
+2. Trigger `business-scraper` Lambda via SQS
+3. Fetch website HTML with `requests` (strip scripts/styles/SVGs to save tokens)
+4. Send cleaned HTML to Bedrock Claude 3.5 Sonnet — LLM extracts business info directly
+5. Store structured data in `business_info` table + update `customers` with key fields
 
 ### Step 2: Confirm Business Details
 **Endpoint**: `POST /api/onboarding/:customerId/confirm-business`
@@ -940,57 +940,77 @@ await stripe.subscriptionItems.createUsageRecord(
 
 ## Implementation Status
 
-### Phase 1: Infrastructure (Weeks 1-2) - ⏳ Pending
-- [ ] AWS account setup, IAM roles, VPC
-- [ ] Aurora PostgreSQL + DynamoDB deployment
-- [ ] S3 buckets, Cognito, API Gateway
-- [ ] Lambda function scaffolds
-- [ ] AWS CDK project structure
+### Phase 1: Infrastructure (Weeks 1-2) - ✅ Complete
+- [x] AWS account setup, IAM roles, VPC (infra-01)
+- [x] Aurora PostgreSQL + DynamoDB deployment (infra-02)
+- [x] S3 buckets, Cognito, API Gateway (infra-03, infra-04)
+- [x] Lambda function scaffolds (infra-05)
+- [x] AWS CDK project structure (5 stacks: api, database, lambda, storage, step-functions)
 
-### Phase 2: Onboarding Steps 1-3 (Weeks 3-4) - ⏳ Pending
-- [ ] Business scraper Lambda (Python)
-- [ ] Voice selection API (ElevenLabs integration)
-- [ ] Confirm business endpoint
-- [ ] Frontend components (Steps 1-3)
-- [ ] End-to-end testing
+### Phase 2: Onboarding Steps 1-3 (Weeks 3-4) - 🟡 Backend Complete
+- [x] Business scraper Lambda — LLM-first approach: fetch HTML + Bedrock Claude extraction (onboarding-01)
+- [x] Voice selection API — ElevenLabs integration with caching (onboarding-03)
+- [x] Confirm business endpoint (onboarding-02)
+- [ ] Frontend components Steps 1-3 (onboarding-04)
+- [ ] End-to-end testing (onboarding-05)
 
-### Phase 3: Knowledge Base - Step 4 (Weeks 5-6) - ⏳ Pending
-- [ ] File upload to S3
-- [ ] PDF/DOCX extraction (PyPDF2, python-docx)
-- [ ] Bedrock integration (Claude 3.5 Sonnet)
-- [ ] Manual text entry API
-- [ ] Frontend component (Step 4)
+### Phase 3: Knowledge Base - Step 4 (Weeks 5-6) - 🟡 Backend Complete
+- [x] File upload to S3 with presigned URLs (kb-01)
+- [x] PDF/DOCX extraction — PyPDF2, python-docx (kb-02)
+- [x] Bedrock integration — Claude 3.5 Sonnet structuring (kb-03)
+- [x] Manual text entry API with category merging (kb-04)
+- [x] Processing status polling endpoint (kb-05)
+- [ ] Frontend component Step 4 (kb-06)
 
-### Phase 4: Agent Deployment - Step 5 (Weeks 7-8) - ⏳ Pending
-- [ ] Step Functions workflow
-- [ ] ElevenLabs agent creation Lambda
-- [ ] Twilio phone provisioning Lambda
-- [ ] Test call functionality
-- [ ] WebSocket real-time updates
-- [ ] Frontend component (Step 5)
+### Phase 4: Agent Deployment - Step 5 (Weeks 7-8) - 🟡 Backend Complete
+- [x] Step Functions workflow — 4-state machine (agent-01)
+- [x] ElevenLabs agent creation Lambda (agent-02)
+- [x] Twilio phone provisioning Lambda (agent-03)
+- [x] Link number to agent (agent-04)
+- [x] Test call functionality (agent-05)
+- [x] Call recording & transcript — Twilio recording + ElevenLabs transcript fetch (agent-06)
+- [ ] Frontend component Step 5 (agent-07)
 
-### Phase 5: Payment - Step 6 (Week 9) - ⏳ Pending
-- [ ] Stripe integration
-- [ ] Payment flow (Elements)
-- [ ] Usage tracking Lambda
-- [ ] Agent activation
-- [ ] Frontend component (Step 6)
+### Phase 5: Payment - Step 6 (Week 9) - 🟡 Backend Complete
+- [x] Stripe integration — products, metered billing (payment-01)
+- [x] Payment flow — create customer, subscription, 2 line items (payment-02)
+- [x] Usage tracking Lambda — overage detection, Stripe reporting (payment-03)
+- [x] Agent activation on payment success (payment-04)
+- [ ] Frontend component Step 6 (payment-05)
+
+### Phase 5.5: Webhooks - ✅ Complete
+- [x] Twilio webhook Lambda — call status, test call status, signature validation
+- [x] Stripe webhook Lambda — payment succeeded/failed, subscription lifecycle
+- [x] Usage tracker integration — SQS trigger from Twilio, Stripe metered billing
 
 ### Phase 6: Dashboard (Week 10) - ⏳ Pending
-- [ ] Dashboard overview
-- [ ] Call history (DynamoDB queries)
-- [ ] Agent settings
-- [ ] Billing & invoices
+- [ ] Dashboard overview (dashboard-01)
+- [ ] Call history — DynamoDB queries (dashboard-02)
+- [ ] Agent settings (dashboard-03)
+- [ ] Billing & invoices (dashboard-04)
+- [ ] CloudWatch dashboards & alarms (dashboard-05, 60% done — webhooks implemented)
 
 ### Phase 7: Polish & Launch (Week 10) - ⏳ Pending
-- [ ] Error handling & retries
-- [ ] Security audit (AWS Security Hub)
-- [ ] Load testing (100 concurrent onboardings)
-- [ ] Documentation (Swagger, developer guide)
-- [ ] Production deployment
+- [ ] Error handling & retries (polish-01)
+- [ ] Security audit — AWS Security Hub (polish-02)
+- [ ] Load testing — 100 concurrent onboardings (polish-03)
+- [ ] Documentation — Swagger, developer guide (polish-04)
+- [ ] Production deployment (polish-05)
 - [ ] Launch to 10 beta customers in Bilbao
 
-**Overall Progress**: 0% (0/38 PRD items complete)
+**Overall Progress**: 63% (24/38 PRD items complete)
+
+### Backend Lambda Status (All 7 Implemented)
+
+| Lambda | Files | Status |
+|--------|-------|--------|
+| onboarding-api | 7 route files (TypeScript) | ✅ Complete |
+| business-scraper | lambda_function.py — LLM-first, no BeautifulSoup | ✅ Complete |
+| agent-deployment | 4 step files (TypeScript) | ✅ Complete |
+| knowledge-base-processor | lambda_function.py + PyPDF2/docx | ✅ Complete |
+| twilio-webhook | index.ts, call-status.ts, validate-signature.ts | ✅ Complete |
+| stripe-webhook | index.ts, subscription-events.ts, validate-signature.ts | ✅ Complete |
+| usage-tracker | lambda_function.py — overage + Stripe metered | ✅ Complete |
 
 ## Documentation
 
@@ -1054,6 +1074,6 @@ await stripe.subscriptionItems.createUsageRecord(
 
 ---
 
-**Last Updated**: 2025-01-06
-**Version**: 2.0 (Frontend complete, Backend planned)
-**Status**: Landing page deployed, Backend architecture documented and ready for implementation
+**Last Updated**: 2026-02-06
+**Version**: 3.0 (Frontend complete, Backend 100% Lambda code implemented)
+**Status**: Landing page deployed, All 7 backend Lambda functions implemented. Pending: frontend onboarding components, dashboard, polish & production deployment.

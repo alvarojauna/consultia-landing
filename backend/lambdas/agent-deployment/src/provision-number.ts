@@ -47,7 +47,7 @@ export async function provisionNumber(event: ProvisionNumberEvent): Promise<any>
     locality: selectedNumber.locality,
   });
 
-  // Purchase the phone number
+  // Purchase the phone number with recording enabled
   const purchasedNumber = await twilioClient.incomingPhoneNumbers.create({
     phoneNumber: selectedNumber.phoneNumber,
     voiceUrl: event.webhook_url, // ElevenLabs webhook

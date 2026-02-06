@@ -1,0 +1,24 @@
+{
+  "name": "consultia-twilio-webhook",
+  "version": "1.0.0",
+  "description": "Lambda function for Twilio webhook events (call status, recordings)",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "jest"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.1691.0",
+    "axios": "^1.7.2",
+    "consultia-shared-nodejs": "file:../../shared/nodejs",
+    "twilio": "^5.2.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^20.14.9",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.5",
+    "typescript": "^5.5.3"
+  }
+}

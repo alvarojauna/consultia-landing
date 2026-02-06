@@ -2,9 +2,9 @@
   "name": "ConsultIA - Backend Agent Creation System",
   "description": "Sistema backend completo para creación multi-tenant de agentes AI con ElevenLabs, Twilio y Stripe. Incluye flujo de onboarding de 6 pasos con subida de base de conocimiento, despliegue de agente y llamada de prueba antes del pago.",
   "progress": {
-    "completed": 20,
+    "completed": 24,
     "total": 38,
-    "percentage": 53
+    "percentage": 63
   },
   "items": [
     {
@@ -88,14 +88,14 @@
       "description": "Business Information Scraper",
       "steps": [
         "Crear Lambda business-scraper (Python 3.12, 1GB, 60s timeout)",
-        "Implementar web scraping con BeautifulSoup o Playwright",
-        "Extraer: name, address, services, hours, contact info",
-        "Store en business_info table con status 'pending_confirmation'",
-        "Manejar errores: sitios protegidos, timeouts, SSL issues"
+        "Implementar extracción LLM-first: fetch HTML + Bedrock Claude para extraer datos",
+        "Extraer: name, address, services, hours, contact info, social media",
+        "Store en business_info table y actualizar customers con datos clave",
+        "Manejar errores: sitios protegidos, timeouts, SSL issues, JSON parse"
       ],
       "priority": "high",
-      "passes": false,
-      "progress": 0
+      "passes": true,
+      "progress": 100
     },
     {
       "id": "onboarding-02",
@@ -330,12 +330,12 @@
         "Configurar Twilio call recording (record: true en calls.create)",
         "Crear Lambda twilio-webhook para recibir call status",
         "Almacenar recording_url en test_calls table al finalizar llamada",
-        "Obtener transcript desde ElevenLabs (si disponible)",
+        "Obtener transcript desde ElevenLabs Conversational AI API",
         "Calcular duration_seconds y actualizar test_calls"
       ],
       "priority": "medium",
-      "passes": false,
-      "progress": 0
+      "passes": true,
+      "progress": 100
     },
     {
       "id": "agent-07",
@@ -388,14 +388,14 @@
       "description": "Usage Tracking",
       "steps": [
         "Crear Lambda usage-tracker (Python 3.12, 256MB, 15s timeout)",
-        "Trigger en Twilio webhook al finalizar llamada",
-        "Calcular call_duration_minutes con 3 decimales",
+        "Trigger via SQS desde twilio-webhook al finalizar llamada",
+        "Calcular call_duration_minutes con 3 decimales, overage sobre cuota",
         "Insertar en usage_records table: quantity, unit_price, total_cost",
-        "Reportar a Stripe: subscriptionItems.createUsageRecord()"
+        "Reportar overage a Stripe: subscriptionItems.createUsageRecord()"
       ],
       "priority": "high",
-      "passes": false,
-      "progress": 0
+      "passes": true,
+      "progress": 100
     },
     {
       "id": "payment-04",
@@ -500,7 +500,7 @@
       ],
       "priority": "medium",
       "passes": false,
-      "progress": 0
+      "progress": 60
     },
     {
       "id": "polish-01",
