@@ -256,9 +256,10 @@ export const api = {
       body: JSON.stringify({ plan_tier: tier, billing_period: period, minutes_included: minutes }),
     }),
 
-  createCheckoutSession: (customerId: string) =>
+  createCheckoutSession: (customerId: string, planTier: string, billingPeriod: string) =>
     request<{ checkout_url: string; dashboard_url: string }>(`/onboarding/${customerId}/create-checkout`, {
       method: 'POST',
+      body: JSON.stringify({ plan_tier: planTier, billing_period: billingPeriod }),
     }),
 
   // ============================

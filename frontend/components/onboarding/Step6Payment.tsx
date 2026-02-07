@@ -63,7 +63,7 @@ export default function Step6Payment() {
       })
 
       // Step 2: Create Stripe Checkout Session and redirect
-      const result = await api.createCheckoutSession(state.customerId!)
+      const result = await api.createCheckoutSession(state.customerId!, selectedTier, billingPeriod)
 
       if (result.checkout_url) {
         // Validate the URL is a legitimate Stripe checkout page (prevent open redirect)

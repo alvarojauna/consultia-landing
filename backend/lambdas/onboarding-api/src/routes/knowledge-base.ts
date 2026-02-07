@@ -312,7 +312,7 @@ export async function getKnowledgeBaseStatus(
         status: kb.processing_status,
         progress,
         total_sources: total,
-        sources_completed: completed,
+        processed_sources: completed,
         sources,
         has_structured_data: !!kb.structured_data,
       },

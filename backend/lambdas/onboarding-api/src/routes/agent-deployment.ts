@@ -164,12 +164,13 @@ export async function getDeployStatus(
   requestId: string
 ): Promise<APIGatewayProxyResult> {
   try {
-    // Get agent status
+    // Get agent status with customer name and KB stats
     const agentResult = await query(
       `SELECT a.agent_id, a.elevenlabs_agent_id, a.status, a.error_message,
-              a.deployed_at, p.phone_number
+              a.deployed_at, p.phone_number, c.business_name
        FROM agents a
        LEFT JOIN phone_numbers p ON p.agent_id = a.agent_id
+       LEFT JOIN customers c ON c.customer_id = a.customer_id
        WHERE a.customer_id = $1
        ORDER BY a.created_at DESC
        LIMIT 1`,
@@ -190,6 +191,17 @@ export async function getDeployStatus(
 
     const agent = agentResult.rows[0];
 
+    // Get KB stats for the agent info card
+    const kbResult = await query(
+      `SELECT COUNT(*)::int AS total_sources,
+              COUNT(*) FILTER (WHERE ks.processing_status = 'complete')::int AS processed
+       FROM kb_sources ks
+       JOIN knowledge_bases kb ON kb.kb_id = ks.kb_id
+       WHERE kb.customer_id = $1`,
+      [customerId]
+    );
+    const kbStats = kbResult.rows[0] || { total_sources: 0, processed: 0 };
+
     return createSuccessResponse(
       {
         status: agent.status,
@@ -199,6 +211,9 @@ export async function getDeployStatus(
         phone_number: agent.phone_number,
         deployed_at: agent.deployed_at,
         error_message: agent.error_message,
+        agent_name: agent.business_name ? `${agent.business_name} - Recepcionista` : null,
+        docs_processed: kbStats.processed,
+        faqs_extracted: null,
       },
       200,
       requestId
