@@ -18,3 +18,7 @@ applications:
         paths:
           - node_modules/**/*
           - .next/cache/**/*
+    customRules:
+      - source: '</^[^.]+$|\.(?!(css|gif|ico|jpg|jpeg|js|png|txt|svg|woff|woff2|ttf|eot|map|json)$)([^.]+$)/>'
+        target: /index.html
+        status: '200'
