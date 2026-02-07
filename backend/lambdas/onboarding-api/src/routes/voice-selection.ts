@@ -50,7 +50,7 @@ async function getVoices(requestId: string): Promise<APIGatewayProxyResult> {
     console.log(`[Get Voices] Returning ${voices.length} voices`);
 
     return createSuccessResponse(
-      { voices },
+      voices,
       200,
       requestId
     );

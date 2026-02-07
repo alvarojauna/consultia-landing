@@ -119,9 +119,110 @@ export async function handleSelectPlan(
 }
 
 /**
+ * POST /onboarding/:customerId/create-checkout
+ *
+ * Step 6b: Create Stripe Checkout Session and return URL
+ */
+export async function handleCreateCheckout(
+  event: APIGatewayProxyEvent,
+  requestId: string
+): Promise<APIGatewayProxyResult> {
+  try {
+    const customerId = getCustomerIdFromPath(event);
+
+    console.log('[Create Checkout]', { customerId });
+
+    // Get customer info and selected plan
+    const customerResult = await query(
+      'SELECT customer_id, email, business_name FROM customers WHERE customer_id = $1',
+      [customerId]
+    );
+
+    if (customerResult.rows.length === 0) {
+      return createErrorResponse('CUSTOMER_NOT_FOUND', 'Customer not found', 404, null, requestId);
+    }
+
+    const customer = customerResult.rows[0];
+
+    // Get the most recently selected plan from the customer's onboarding state
+    // The plan was selected in select-plan step, stored as onboarding_step=6
+    // We need to read the plan from the request or use a default
+    const body = event.body ? JSON.parse(event.body) : {};
+    const plan_tier = body.plan_tier || 'starter';
+    const billing_period = body.billing_period || 'monthly';
+
+    const planPricing = PLANS[plan_tier as keyof typeof PLANS]?.[billing_period as keyof typeof PLANS['starter']];
+    if (!planPricing) {
+      return createErrorResponse('INVALID_PLAN', 'Invalid plan or billing period', 400, null, requestId);
+    }
+
+    const { STRIPE_SECRET_KEY } = await getApiKeys();
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://master.d3y5kfh3d0f62.amplifyapp.com';
+
+    // Create Stripe Checkout Session
+    const params = new URLSearchParams();
+    params.append('mode', 'subscription');
+    params.append('success_url', `${frontendUrl}/dashboard?checkout=success`);
+    params.append('cancel_url', `${frontendUrl}/onboarding?checkout=cancelled`);
+    params.append('customer_email', customer.email);
+    params.append('line_items[0][price_data][currency]', 'eur');
+    params.append('line_items[0][price_data][unit_amount]', (planPricing.price_eur * 100).toString());
+    params.append('line_items[0][price_data][recurring][interval]', billing_period === 'yearly' ? 'year' : 'month');
+    params.append('line_items[0][price_data][product_data][name]', `ConsultIA ${plan_tier.charAt(0).toUpperCase() + plan_tier.slice(1)} Plan`);
+    params.append('line_items[0][quantity]', '1');
+    params.append('metadata[customer_id]', customerId);
+    params.append('metadata[plan_tier]', plan_tier);
+    params.append('metadata[billing_period]', billing_period);
+    params.append('metadata[minutes_included]', planPricing.minutes.toString());
+
+    const checkoutResponse = await axios.post(
+      'https://api.stripe.com/v1/checkout/sessions',
+      params.toString(),
+      {
+        headers: {
+          Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      }
+    );
+
+    const session = checkoutResponse.data;
+
+    console.log('[Create Checkout] Session created', { session_id: session.id });
+
+    return createSuccessResponse(
+      {
+        checkout_url: session.url,
+        dashboard_url: `${frontendUrl}/dashboard`,
+      },
+      200,
+      requestId
+    );
+  } catch (error: any) {
+    if (error.name === 'ValidationError') throw error;
+
+    if (error.response?.data?.error) {
+      const stripeError = error.response.data.error;
+      console.error('[Stripe Checkout Error]', { requestId, type: stripeError.type, code: stripeError.code });
+      return createErrorResponse(
+        'CHECKOUT_FAILED',
+        stripeError.message || 'Failed to create checkout session',
+        400,
+        null,
+        requestId
+      );
+    }
+
+    console.error('[Create Checkout Error]', { requestId, message: error.message });
+    return createErrorResponse('CREATE_CHECKOUT_ERROR', 'Failed to create checkout session', 500, null, requestId);
+  }
+}
+
+/**
  * POST /onboarding/:customerId/complete-payment
  *
- * Step 6b: Complete payment and activate subscription
+ * Step 6c: Complete payment and activate subscription (webhook fallback)
  */
 export async function handleCompletePayment(
   event: APIGatewayProxyEvent,

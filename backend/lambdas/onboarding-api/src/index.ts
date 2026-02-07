@@ -16,7 +16,7 @@ import { handleSelectVoice } from './routes/voice-selection';
 import { handleKnowledgeBaseUpload, getKnowledgeBaseStatus } from './routes/knowledge-base';
 import { handleDeployAgent, getDeployStatus } from './routes/agent-deployment';
 import { handleTestCall, getTestCallStatus } from './routes/test-call';
-import { handleSelectPlan, handleCompletePayment } from './routes/payment';
+import { handleSelectPlan, handleCreateCheckout, handleCompletePayment } from './routes/payment';
 
 /**
  * Main Lambda handler for onboarding API
@@ -187,28 +187,35 @@ export const handler = async (
     if (httpMethod === 'GET' && path === '/plans') {
       // Public endpoint - return plan tiers
       return createSuccessResponse(
-        {
-          plans: [
-            {
-              tier: 'starter',
-              minutes_included: 150,
-              price_monthly_eur: 29,
-              price_yearly_eur: 290,
-            },
-            {
-              tier: 'professional',
-              minutes_included: 300,
-              price_monthly_eur: 79,
-              price_yearly_eur: 790,
-            },
-            {
-              tier: 'enterprise',
-              minutes_included: 750,
-              price_monthly_eur: 199,
-              price_yearly_eur: 1990,
-            },
-          ],
-        },
+        [
+          {
+            id: 'plan_starter',
+            name: 'Starter',
+            tier: 'starter',
+            minutes_included: 150,
+            price_monthly: 29,
+            price_yearly: 290,
+            features: ['150 minutos/mes', 'Agente AI personalizado', 'Número de teléfono dedicado', 'Soporte por email'],
+          },
+          {
+            id: 'plan_professional',
+            name: 'Professional',
+            tier: 'professional',
+            minutes_included: 300,
+            price_monthly: 79,
+            price_yearly: 790,
+            features: ['300 minutos/mes', 'Agente AI personalizado', 'Número de teléfono dedicado', 'Base de conocimiento avanzada', 'Analíticas detalladas', 'Soporte prioritario'],
+          },
+          {
+            id: 'plan_enterprise',
+            name: 'Enterprise',
+            tier: 'enterprise',
+            minutes_included: 750,
+            price_monthly: 199,
+            price_yearly: 1990,
+            features: ['750 minutos/mes', 'Agente AI personalizado', 'Número de teléfono dedicado', 'Base de conocimiento ilimitada', 'Analíticas avanzadas', 'Soporte 24/7', 'API access'],
+          },
+        ],
         200,
         requestId
       );
@@ -219,6 +226,13 @@ export const handler = async (
       path.match(/^\/onboarding\/[^/]+\/select-plan$/)
     ) {
       return await handleSelectPlan(event, requestId);
+    }
+
+    if (
+      httpMethod === 'POST' &&
+      path.match(/^\/onboarding\/[^/]+\/create-checkout$/)
+    ) {
+      return await handleCreateCheckout(event, requestId);
     }
 
     if (

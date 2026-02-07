@@ -34,7 +34,6 @@ export default function Step1BusinessInfo() {
         customerId: result.customer_id,
         website,
         countryCode,
-        currentStep: 2,
       })
 
       nextStep()

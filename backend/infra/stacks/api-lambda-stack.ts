@@ -125,7 +125,7 @@ export class ApiLambdaStack extends cdk.Stack {
       environment: {
         DB_SECRET_NAME: props.databaseSecret.secretName,
         KNOWLEDGE_BASE_BUCKET: props.knowledgeBaseBucket.bucketName,
-        FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3001',
+        FRONTEND_URL: 'https://master.d3y5kfh3d0f62.amplifyapp.com',
         DEPLOY_REGION: this.region,
         API_KEYS_SECRET_NAME: 'consultia/production/api-keys',
         DEPLOY_AGENT_STATE_MACHINE_ARN: `arn:aws:states:${this.region}:${this.account}:stateMachine:consultia-deploy-agent`,
@@ -170,7 +170,7 @@ export class ApiLambdaStack extends cdk.Stack {
       layers: [sharedLayer],
       environment: {
         DB_SECRET_NAME: props.databaseSecret.secretName,
-        FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3001',
+        FRONTEND_URL: 'https://master.d3y5kfh3d0f62.amplifyapp.com',
         API_KEYS_SECRET_NAME: 'consultia/production/api-keys',
       },
     });

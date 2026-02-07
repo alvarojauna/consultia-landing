@@ -26,8 +26,7 @@ export function createSuccessResponse<T>(
     statusCode,
     headers: {
       'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': process.env.FRONTEND_URL || 'https://consultia.es',
-      'Access-Control-Allow-Credentials': 'true',
+      'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With',
     },
@@ -66,8 +65,7 @@ export function createErrorResponse(
     statusCode,
     headers: {
       'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': process.env.FRONTEND_URL || 'https://consultia.es',
-      'Access-Control-Allow-Credentials': 'true',
+      'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With',
     },
@@ -86,8 +84,7 @@ export function createCorsResponse(): {
   return {
     statusCode: 200,
     headers: {
-      'Access-Control-Allow-Origin': process.env.FRONTEND_URL || 'https://consultia.es',
-      'Access-Control-Allow-Credentials': 'true',
+      'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With',
     },
