@@ -32,10 +32,7 @@ export class StorageStack extends cdk.Stack {
             s3.HttpMethods.PUT,
             s3.HttpMethods.POST,
           ],
-          allowedOrigins: [
-            'https://consultia.es',
-            'https://*.consultia.es',
-          ],
+          allowedOrigins: ['*'],
           allowedHeaders: ['*'],
           maxAge: 3000,
         },

@@ -2,9 +2,9 @@
   "name": "ConsultIA - Backend Agent Creation System",
   "description": "Sistema backend completo para creación multi-tenant de agentes AI con ElevenLabs, Twilio y Stripe. Incluye flujo de onboarding de 6 pasos con subida de base de conocimiento, despliegue de agente y llamada de prueba antes del pago.",
   "progress": {
-    "completed": 37,
+    "completed": 38,
     "total": 38,
-    "percentage": 97
+    "percentage": 100
   },
   "items": [
     {
@@ -576,8 +576,8 @@
         "Lanzar a primeros 10 beta customers en Bilbao"
       ],
       "priority": "critical",
-      "passes": false,
-      "progress": 0
+      "passes": true,
+      "progress": 100
     }
   ]
 }

@@ -3,9 +3,9 @@ import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { DatabaseStack } from './stacks/database-stack';
 import { StorageStack } from './stacks/storage-stack';
-import { ApiStack } from './stacks/api-stack';
-import { LambdaStack } from './stacks/lambda-stack';
+import { ApiLambdaStack } from './stacks/api-lambda-stack';
 import { StepFunctionsStack } from './stacks/step-functions-stack';
+import { MonitoringStack } from './stacks/monitoring-stack';
 
 const app = new cdk.App();
 
@@ -30,41 +30,56 @@ const storageStack = new StorageStack(app, `${stackPrefix}-Storage`, {
   description: 'S3 buckets for knowledge bases, recordings, and assets',
 });
 
-// 3. API Stack (API Gateway + Cognito)
-const apiStack = new ApiStack(app, `${stackPrefix}-Api`, {
+// 3. API + Lambda Stack (combined to avoid circular dependencies)
+const apiLambdaStack = new ApiLambdaStack(app, `${stackPrefix}-ApiLambda`, {
   env,
-  description: 'API Gateway REST + WebSocket APIs with Cognito auth',
-});
-
-// 4. Lambda Stack (All Lambda functions)
-const lambdaStack = new LambdaStack(app, `${stackPrefix}-Lambda`, {
-  env,
-  description: 'Lambda functions for onboarding, processing, webhooks',
+  description: 'API Gateway, Cognito, and all Lambda functions',
+  vpc: databaseStack.vpc,
   database: databaseStack.database,
   databaseSecret: databaseStack.databaseSecret,
+  lambdaSecurityGroup: databaseStack.lambdaSecurityGroup,
   knowledgeBaseBucket: storageStack.knowledgeBaseBucket,
   recordingsBucket: storageStack.recordingsBucket,
   callLogsTable: databaseStack.callLogsTable,
   agentSessionsTable: databaseStack.agentSessionsTable,
-  api: apiStack.api,
-  userPool: apiStack.userPool,
 });
 
-// 5. Step Functions Stack (Agent deployment workflow)
+// 4. Step Functions Stack (Agent deployment workflow)
 const stepFunctionsStack = new StepFunctionsStack(app, `${stackPrefix}-StepFunctions`, {
   env,
   description: 'Step Functions workflow for agent deployment',
-  createAgentFunction: lambdaStack.createAgentFunction,
-  provisionNumberFunction: lambdaStack.provisionNumberFunction,
-  linkNumberFunction: lambdaStack.linkNumberFunction,
-  updateDatabaseFunction: lambdaStack.updateDatabaseFunction,
+  createAgentFunction: apiLambdaStack.createAgentFunction,
+  provisionNumberFunction: apiLambdaStack.provisionNumberFunction,
+  linkNumberFunction: apiLambdaStack.linkNumberFunction,
+  updateDatabaseFunction: apiLambdaStack.updateDatabaseFunction,
+});
+
+// 5. Monitoring Stack (CloudWatch Alarms + Dashboard)
+const monitoringStack = new MonitoringStack(app, `${stackPrefix}-Monitoring`, {
+  env,
+  description: 'CloudWatch alarms, dashboard, and SNS notifications',
+  api: apiLambdaStack.api,
+  database: databaseStack.database,
+  stateMachine: stepFunctionsStack.stateMachine,
+  lambdaFunctions: [
+    apiLambdaStack.onboardingApiFunction,
+    apiLambdaStack.dashboardApiFunction,
+    apiLambdaStack.webhookApiFunction,
+    apiLambdaStack.kbProcessorFunction,
+    apiLambdaStack.createAgentFunction,
+    apiLambdaStack.provisionNumberFunction,
+    apiLambdaStack.linkNumberFunction,
+    apiLambdaStack.updateDatabaseFunction,
+  ],
 });
 
 // Add dependencies
-lambdaStack.addDependency(databaseStack);
-lambdaStack.addDependency(storageStack);
-lambdaStack.addDependency(apiStack);
-stepFunctionsStack.addDependency(lambdaStack);
+apiLambdaStack.addDependency(databaseStack);
+apiLambdaStack.addDependency(storageStack);
+stepFunctionsStack.addDependency(apiLambdaStack);
+monitoringStack.addDependency(apiLambdaStack);
+monitoringStack.addDependency(stepFunctionsStack);
+monitoringStack.addDependency(databaseStack);
 
 // Tags for all resources
 cdk.Tags.of(app).add('Project', 'ConsultIA');

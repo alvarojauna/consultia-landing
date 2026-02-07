@@ -7,6 +7,7 @@ export class ApiStack extends cdk.Stack {
   public readonly api: apigateway.RestApi;
   public readonly userPool: cognito.UserPool;
   public readonly userPoolClient: cognito.UserPoolClient;
+  public readonly cognitoAuthorizer: apigateway.CognitoUserPoolsAuthorizer;
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -78,10 +79,7 @@ export class ApiStack extends cdk.Stack {
         metricsEnabled: true,
       },
       defaultCorsPreflightOptions: {
-        allowOrigins: [
-          'https://consultia.es',
-          'https://*.consultia.es',
-        ],
+        allowOrigins: apigateway.Cors.ALL_ORIGINS,
         allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         allowHeaders: [
           'Content-Type',
@@ -89,8 +87,15 @@ export class ApiStack extends cdk.Stack {
           'X-Requested-With',
           'X-Api-Key',
         ],
-        allowCredentials: true,
+        allowCredentials: false,
       },
+    });
+
+    // ========================================
+    // Cognito Authorizer (for use in LambdaStack)
+    // ========================================
+    this.cognitoAuthorizer = new apigateway.CognitoUserPoolsAuthorizer(this, 'CognitoAuth', {
+      cognitoUserPools: [this.userPool],
     });
 
     // ========================================

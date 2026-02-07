@@ -6,8 +6,10 @@ import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import { Construct } from 'constructs';
 
 export class DatabaseStack extends cdk.Stack {
+  public readonly vpc: ec2.Vpc;
   public readonly database: rds.DatabaseCluster;
   public readonly databaseSecret: secretsmanager.ISecret;
+  public readonly lambdaSecurityGroup: ec2.SecurityGroup;
   public readonly callLogsTable: dynamodb.Table;
   public readonly agentSessionsTable: dynamodb.Table;
 
@@ -17,7 +19,7 @@ export class DatabaseStack extends cdk.Stack {
     // ========================================
     // VPC for Aurora Cluster
     // ========================================
-    const vpc = new ec2.Vpc(this, 'ConsultIA-VPC', {
+    this.vpc = new ec2.Vpc(this, 'ConsultIA-VPC', {
       maxAzs: 2, // Multi-AZ for high availability
       natGateways: 1, // 1 NAT Gateway to reduce costs (can increase to 2 for HA)
       subnetConfiguration: [
@@ -61,7 +63,7 @@ export class DatabaseStack extends cdk.Stack {
     // Parameter Group for PostgreSQL 15
     const parameterGroup = new rds.ParameterGroup(this, 'AuroraParameterGroup', {
       engine: rds.DatabaseClusterEngine.auroraPostgres({
-        version: rds.AuroraPostgresEngineVersion.VER_15_4,
+        version: rds.AuroraPostgresEngineVersion.VER_15_13,
       }),
       description: 'Parameter group for ConsultIA Aurora PostgreSQL 15',
       parameters: {
@@ -74,12 +76,12 @@ export class DatabaseStack extends cdk.Stack {
     // Aurora Serverless v2 Cluster
     this.database = new rds.DatabaseCluster(this, 'AuroraCluster', {
       engine: rds.DatabaseClusterEngine.auroraPostgres({
-        version: rds.AuroraPostgresEngineVersion.VER_15_4,
+        version: rds.AuroraPostgresEngineVersion.VER_15_13,
       }),
       credentials: rds.Credentials.fromSecret(databaseCredentials),
       defaultDatabaseName: 'consultia',
       parameterGroup,
-      vpc,
+      vpc: this.vpc,
       vpcSubnets: {
         subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
       },
@@ -101,6 +103,18 @@ export class DatabaseStack extends cdk.Stack {
       storageEncrypted: true, // Encrypt at rest
       deletionProtection: true, // Prevent accidental deletion (IMPORTANT!)
     });
+
+    // ========================================
+    // Lambda Security Group (shared by all Lambdas that access DB)
+    // ========================================
+    this.lambdaSecurityGroup = new ec2.SecurityGroup(this, 'LambdaSecurityGroup', {
+      vpc: this.vpc,
+      description: 'Security group for Lambda functions accessing Aurora',
+      allowAllOutbound: true,
+    });
+
+    // Allow Lambda SG to connect to Aurora on PostgreSQL port
+    this.database.connections.allowDefaultPortFrom(this.lambdaSecurityGroup);
 
     // ========================================
     // DynamoDB Tables

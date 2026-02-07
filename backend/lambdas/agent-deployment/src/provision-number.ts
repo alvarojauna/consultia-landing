@@ -54,9 +54,8 @@ export async function provisionNumber(event: ProvisionNumberEvent): Promise<any>
     voiceMethod: 'POST',
     statusCallback: `${process.env.API_BASE_URL}/webhooks/twilio/call-status`,
     statusCallbackMethod: 'POST',
-    statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
     friendlyName: `ConsultIA - ${event.customer_id}`,
-  });
+  } as any);
 
   console.log('[Provision Number] Number purchased', {
     phone_number: purchasedNumber.phoneNumber,
