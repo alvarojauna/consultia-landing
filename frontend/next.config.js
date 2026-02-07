@@ -10,7 +10,7 @@ const nextConfig = {
     ignoreBuildErrors: false,
   },
   eslint: {
-    ignoreDuringBuilds: true, // ESLint config compatibility issue with Next.js 14
+    ignoreDuringBuilds: false,
   },
 }
 

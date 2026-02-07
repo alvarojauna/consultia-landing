@@ -1,6 +1,7 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import {
   initializePool,
+  query,
   createSuccessResponse,
   createErrorResponse,
   createCorsResponse,
@@ -83,12 +84,49 @@ export const handler = async (
       if (!rawCustomerId) {
         return createErrorResponse('INVALID_REQUEST', 'customerId is required', 400, null, requestId);
       }
-      // TODO: Implement getBusinessStatus handler
-      return createSuccessResponse(
-        { status: 'pending', message: 'Not implemented yet' },
-        200,
-        requestId
+
+      // Query business_info for scraping results
+      const biResult = await query(
+        `SELECT scraped_data, services, hours, contacts, confirmed, scraped_at
+         FROM business_info WHERE customer_id = $1`,
+        [rawCustomerId]
       );
+
+      if (biResult.rows.length === 0) {
+        return createSuccessResponse({ status: 'pending', scraped_data: null }, 200, requestId);
+      }
+
+      const bi = biResult.rows[0];
+      const sd = bi.scraped_data || {};
+
+      // Check if scraper returned an error
+      if (sd.error || sd.status === 'error') {
+        return createSuccessResponse({
+          status: 'complete',
+          scraped_data: { error: sd.error || 'Scraping failed' },
+        }, 200, requestId);
+      }
+
+      // Check if scraper populated real data (has business_name beyond initial website/country_code)
+      if (sd.business_name) {
+        return createSuccessResponse({
+          status: 'complete',
+          scraped_data: {
+            business_name: sd.business_name,
+            address: sd.address || '',
+            phone: sd.phone || '',
+            email: sd.email || '',
+            services: bi.services || sd.services || [],
+            hours: bi.hours || sd.hours || {},
+            industry: sd.industry || '',
+            description: sd.description || '',
+            social_media: sd.social_media || {},
+          },
+        }, 200, requestId);
+      }
+
+      // Scraper hasn't finished yet — still only initial {website, country_code}
+      return createSuccessResponse({ status: 'pending', scraped_data: null }, 200, requestId);
     }
 
     // ========================================

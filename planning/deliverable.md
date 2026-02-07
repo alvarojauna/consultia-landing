@@ -386,7 +386,7 @@ Sistema backend completo para creación multi-tenant de agentes AI con ElevenLab
 **Infraestructura**:
 - **Cloud Provider**: AWS (región eu-west-1 para RGPD)
 - **Compute**: AWS Lambda (serverless)
-- **API**: API Gateway REST + WebSocket
+- **API**: API Gateway REST
 - **Authentication**: Amazon Cognito User Pools
 - **IaC**: AWS CDK (TypeScript)
 
@@ -409,9 +409,8 @@ Sistema backend completo para creación multi-tenant de agentes AI con ElevenLab
 | business-scraper | Python 3.12 | 1 GB | 60s | API Gateway | Scrape business website |
 | agent-deployment | Node.js 20.x | 512 MB | 60s | Step Functions | Create ElevenLabs agents |
 | knowledge-base-processor | Python 3.12 | 3 GB | 900s | SQS | Extract PDF text, call Bedrock |
-| twilio-webhook | Node.js 20.x | 256 MB | 10s | API Gateway | Handle call status updates |
-| stripe-webhook | Node.js 20.x | 256 MB | 10s | API Gateway | Handle subscription events |
-| usage-tracker | Python 3.12 | 256 MB | 15s | Twilio webhook | Track minutes, report to Stripe |
+| webhook-api | Node.js 20.x | 256 MB | 30s | API Gateway | Unified Twilio + Stripe webhooks |
+| usage-tracker | Python 3.12 | 256 MB | 15s | SQS (from webhook-api) | Track minutes, report to Stripe |
 
 ### Database Schema (PostgreSQL)
 
@@ -469,7 +468,7 @@ enterprises (1) → customers (N) → agents (1)
 └────────────────────────────────────────────────────┘
                       ↓
 ┌────────────────────────────────────────────────────┐
-│      API GATEWAY (REST + WebSocket)                │
+│      API GATEWAY (REST)                            │
 │      https://api.consultia.es                      │
 │      Authorization: Cognito JWT                    │
 └────────────────────────────────────────────────────┘
@@ -478,7 +477,7 @@ enterprises (1) → customers (N) → agents (1)
 │           AWS LAMBDA FUNCTIONS (7)                 │
 │  onboarding-api | business-scraper                 │
 │  agent-deployment | knowledge-base-processor       │
-│  twilio-webhook | stripe-webhook | usage-tracker   │
+│  webhook-api | dashboard-api | usage-tracker        │
 └────────────────────────────────────────────────────┘
                       ↓
 ┌────────────────────────────────────────────────────┐
@@ -747,7 +746,7 @@ await db.test_calls.create({
 });
 ```
 
-**Real-Time Updates**: WebSocket connection to `wss://api.consultia.es/ws/test-call/:customerId` pushes call status updates.
+**Real-Time Updates**: Frontend polls `GET /onboarding/:customerId/test-call/:callSid/status` every 2 seconds to get call status updates.
 
 ### Step 6: Payment
 **Endpoint**: `POST /api/onboarding/:customerId/complete-payment`
@@ -858,9 +857,9 @@ All costs tracked per customer in `usage_records` table:
 ### Stripe Subscriptions
 **API**: Stripe SDK for Node.js
 **Pricing Model**:
-- **Starter**: 29€/month (100 minutes included)
-- **Professional**: 79€/month (300 minutes included) ⭐ Most popular
-- **Enterprise**: 199€/month (1000 minutes included)
+- **Starter**: 29€/month (150 minutes included)
+- **Professional**: 79€/month (300 minutes included)
+- **Enterprise**: 199€/month (750 minutes included)
 - **Overage**: €0.15 per minute
 
 **Metered Billing**:
@@ -1031,8 +1030,7 @@ Comprehensive audit of 38 backend + 31 frontend files. Fixed:
 | business-scraper | lambda_function.py — LLM-first, no BeautifulSoup | ✅ Complete |
 | agent-deployment | 4 step files (TypeScript) | ✅ Complete |
 | knowledge-base-processor | lambda_function.py + PyPDF2/docx | ✅ Complete |
-| twilio-webhook | index.ts, call-status.ts, validate-signature.ts | ✅ Complete |
-| stripe-webhook | index.ts, subscription-events.ts, validate-signature.ts | ✅ Complete |
+| webhook-api | index.ts, twilio/, stripe/ (unified) | ✅ Complete |
 | usage-tracker | lambda_function.py — overage + Stripe metered | ✅ Complete |
 | dashboard-api | index.ts, overview.ts, calls.ts, agent-settings.ts, billing.ts | ✅ Complete |
 

@@ -173,11 +173,11 @@ export default function EnterprisePage() {
                   Pruebas, no promesas.
                 </div>
                 <blockquote className="text-text-primary text-lg leading-relaxed italic mb-6">
-                  "No solo estoy contento, ¡todavía estoy en shock! Esta es solo la versión 2, en vivo
+                  &quot;No solo estoy contento, ¡todavía estoy en shock! Esta es solo la versión 2, en vivo
                   durante unos pocos días, y ya está superando con creces a cualquier recepcionista que
                   hayamos tenido en 16 años... Los humanos ahora están haciendo MEJOR porque pueden
                   devolver llamadas solo a aquellas personas que son leads calientes, y sus estadísticas
-                  son el triple de lo que eran."
+                  son el triple de lo que eran.&quot;
                 </blockquote>
                 <div>
                   <div className="font-semibold text-white">Carlos Martínez</div>

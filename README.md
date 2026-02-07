@@ -32,15 +32,14 @@ graph TB
         AG["api.consultia.es<br/>Cognito JWT Auth<br/>Throttling: 1000 req/s"]
     end
 
-    subgraph Lambdas["AWS Lambda Functions x8"]
+    subgraph Lambdas["AWS Lambda Functions x7"]
         L1["onboarding-api<br/>Node.js 20, 512MB"]
         L2["business-scraper<br/>Python 3.12, 1GB"]
         L3["agent-deployment<br/>Node.js 20, 512MB"]
         L4["kb-processor<br/>Python 3.12, 3GB"]
-        L5["twilio-webhook<br/>Node.js 20, 256MB"]
-        L6["stripe-webhook<br/>Node.js 20, 256MB"]
-        L7["usage-tracker<br/>Python 3.12, 256MB"]
-        L8["dashboard-api<br/>Node.js 20, 512MB"]
+        L5["webhook-api<br/>Node.js 20, 256MB"]
+        L6["usage-tracker<br/>Python 3.12, 256MB"]
+        L7["dashboard-api<br/>Node.js 20, 512MB"]
     end
 
     subgraph Orchestration["Step Functions"]
@@ -71,30 +70,28 @@ graph TB
     Frontend --> AG
     AG --> L1
     AG --> L5
-    AG --> L6
-    AG --> L8
+    AG --> L7
     L1 --> L2
     L1 --> SF
     SF --> L3
     L1 --> L4
     L4 --> BR
     L4 --> S3A
-    L5 --> L7
-    L7 --> ST
+    L5 --> L6
+    L6 --> ST
     L1 --> AU
     L3 --> AU
-    L8 --> AU
+    L7 --> AU
     L5 --> DY
-    L7 --> DY
+    L6 --> DY
     L3 --> EL
     L3 --> TW
-    L6 --> ST
+    L5 --> ST
     L5 --> S3B
     AG --> CO
     L1 --> SM
     L3 --> SM
     L5 --> SM
-    L6 --> SM
     CW --> SNS
 ```
 
@@ -108,9 +105,9 @@ El proyecto usa AWS CDK (TypeScript) con 5 stacks desplegados en orden de depend
 graph TD
     DB["ConsultIA-Database<br/><br/>VPC 2 AZ, NAT Gateway<br/>Aurora Serverless v2 PostgreSQL 15<br/>DynamoDB: call_logs, agent_sessions<br/>Security Groups"]
     ST["ConsultIA-Storage<br/><br/>S3: knowledge-bases SSE-S3<br/>S3: call-recordings SSE-KMS<br/>Lifecycle policies<br/>CORS config"]
-    AL["ConsultIA-ApiLambda<br/><br/>API Gateway REST<br/>Cognito User Pool<br/>8 Lambda functions<br/>Shared Lambda Layer"]
+    AL["ConsultIA-ApiLambda<br/><br/>API Gateway REST<br/>Cognito User Pool<br/>7 Lambda functions<br/>Shared Lambda Layer"]
     SF["ConsultIA-StepFunctions<br/><br/>DeployAgentWorkflow<br/>4 estados con retry<br/>Error handling + catch<br/>CloudWatch logging"]
-    MO["ConsultIA-Monitoring<br/><br/>SNS Alarm Topic<br/>8 Lambda error alarms<br/>API 5xx, 4xx, latency alarms<br/>Aurora CPU, connections alarms<br/>CloudWatch Dashboard"]
+    MO["ConsultIA-Monitoring<br/><br/>SNS Alarm Topic<br/>7 Lambda error alarms<br/>API 5xx, 4xx, latency alarms<br/>Aurora CPU, connections alarms<br/>CloudWatch Dashboard"]
 
     DB --> AL
     ST --> AL
@@ -130,7 +127,7 @@ graph TD
 
 1. **ConsultIA-Database** - VPC, Aurora PostgreSQL, DynamoDB
 2. **ConsultIA-Storage** - Buckets S3
-3. **ConsultIA-ApiLambda** - API Gateway, Cognito, 8 Lambdas
+3. **ConsultIA-ApiLambda** - API Gateway, Cognito, 7 Lambdas
 4. **ConsultIA-StepFunctions** - Workflow de despliegue de agentes
 5. **ConsultIA-Monitoring** - Alarmas CloudWatch, Dashboard, SNS
 
@@ -143,7 +140,7 @@ sequenceDiagram
     participant C as Cliente telefono
     participant TW as Twilio
     participant EL as ElevenLabs Agent
-    participant WH as twilio-webhook Lambda
+    participant WH as webhook-api Lambda
     participant UT as usage-tracker Lambda
     participant DY as DynamoDB call_logs
     participant ST as Stripe
@@ -280,18 +277,6 @@ nuevo-proyecto/
 |   |   |-- usage-tracker/             # Python 3.12 - Minutos + Stripe
 |   |   |   |-- lambda_function.py
 |   |   |
-|   |   |-- twilio-webhook/            # Node.js 20.x (legacy)
-|   |   |   |-- src/
-|   |   |       |-- index.ts
-|   |   |       |-- call-status.ts
-|   |   |       |-- validate-signature.ts
-|   |   |
-|   |   |-- stripe-webhook/            # Node.js 20.x (legacy)
-|   |       |-- src/
-|   |           |-- index.ts
-|   |           |-- subscription-events.ts
-|   |           |-- validate-signature.ts
-|   |
 |   |-- shared/                        # Capa compartida Lambda
 |   |   |-- nodejs/
 |   |       |-- src/
@@ -343,11 +328,11 @@ nuevo-proyecto/
 |--------|---------|---------|---------|-------------|
 | onboarding-api | Node.js 20.x | 512 MB | 30s | Endpoints del flujo de onboarding |
 | dashboard-api | Node.js 20.x | 512 MB | 30s | Endpoints del dashboard |
-| webhook-api | Node.js 20.x | 256 MB | 30s | Webhooks Twilio + Stripe |
+| webhook-api | Node.js 20.x | 256 MB | 30s | Webhooks unificado Twilio + Stripe |
 | agent-deployment | Node.js 20.x | 512 MB | 60s | 4 tareas de Step Functions |
 | business-scraper | Python 3.12 | 1 GB | 60s | Scraping web + LLM extraction |
 | knowledge-base-processor | Python 3.12 | 3 GB | 15min | Extraccion PDF/DOCX + Bedrock |
-| usage-tracker | Python 3.12 | 256 MB | 15s | Tracking de minutos + Stripe metered |
+| usage-tracker | Python 3.12 | 256 MB | 15s | Tracking de minutos (SQS trigger) |
 
 ### Infraestructura AWS
 
@@ -426,7 +411,7 @@ cd backend/shared/nodejs
 npm install
 npm run build
 
-# Lambdas Node.js
+# Lambdas Node.js (webhook-api unifica Twilio + Stripe)
 cd ../../lambdas/onboarding-api && npm install && npm run build
 cd ../dashboard-api && npm install && npm run build
 cd ../webhook-api && npm install && npm run build
@@ -580,7 +565,8 @@ La especificacion OpenAPI completa esta en `backend/api-spec/openapi.yaml`.
 | POST | `/onboarding/{customerId}/test-call` | 5b | Iniciar llamada de prueba |
 | GET | `/onboarding/{customerId}/test-call/{callSid}/status` | 5 | Estado de la llamada de prueba |
 | POST | `/onboarding/{customerId}/select-plan` | 6a | Seleccionar plan |
-| POST | `/onboarding/{customerId}/complete-payment` | 6b | Completar pago (Stripe Checkout) |
+| POST | `/onboarding/{customerId}/create-checkout` | 6b | Crear sesion Stripe Checkout |
+| POST | `/onboarding/{customerId}/complete-payment` | 6c | Completar pago (webhook fallback) |
 
 ### Dashboard API (requiere Cognito JWT)
 
@@ -622,7 +608,7 @@ La especificacion OpenAPI completa esta en `backend/api-spec/openapi.yaml`.
 | `CDK_DEFAULT_ACCOUNT` | ID de cuenta AWS | `123456789012` |
 | `CDK_DEFAULT_REGION` | Region AWS | `eu-west-1` |
 | `ENV` | Entorno de despliegue | `production` |
-| `FRONTEND_URL` | URL del frontend (CORS) | `https://consultia.es` |
+| `FRONTEND_URL` | URL del frontend (CORS) | `https://master.d3y5kfh3d0f62.amplifyapp.com` |
 
 ### Secrets Manager
 
@@ -639,9 +625,9 @@ Los secretos sensibles se almacenan en AWS Secrets Manager, nunca como variables
 
 | Plan | Precio Mensual | Minutos Incluidos | Overage |
 |------|---------------|-------------------|---------|
-| Starter | 29 EUR/mes | 100 minutos | 0.15 EUR/min |
+| Starter | 29 EUR/mes | 150 minutos | 0.15 EUR/min |
 | Professional | 79 EUR/mes | 300 minutos | 0.15 EUR/min |
-| Enterprise | 199 EUR/mes | 1000 minutos | 0.15 EUR/min |
+| Enterprise | 199 EUR/mes | 750 minutos | 0.15 EUR/min |
 
 Todos los planes incluyen 14 dias de prueba gratis y facturacion mensual o anual.
 

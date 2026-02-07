@@ -432,7 +432,7 @@ POST /api/onboarding/:customerId/test-call
 3. Agent greets: "Hola, bienvenido a Clínica Veterinaria San Sebastián. ¿En qué puedo ayudarte?"
 4. User can test conversation
 5. Twilio webhooks send call status updates (ringing, answered, completed)
-6. Frontend receives real-time updates via WebSocket
+6. Frontend polls GET /onboarding/:customerId/test-call/:callSid/status every 2s
 7. After call ends, display recording URL and duration
 
 **Database Tables Used:**
@@ -445,8 +445,8 @@ POST /api/onboarding/:customerId/test-call
 - Twilio API (provision number, initiate call)
 
 **Real-Time Updates:**
-- WebSocket connection: `wss://api.consultia.es/ws/test-call/:customerId`
-- Pushes: `{"status": "ringing"}`, `{"status": "answered"}`, `{"status": "completed", "duration": 127}`
+- Polling: `GET /onboarding/:customerId/test-call/:callSid/status` every 2 seconds
+- Returns: `{"status": "ringing"}`, `{"status": "answered"}`, `{"status": "completed", "duration": 127}`
 
 ---
 
@@ -675,16 +675,16 @@ POST /webhooks/stripe/events                   - Stripe subscription webhooks
 FRONTEND (Next.js 14)
 https://consultia.es
         ↓
-API GATEWAY (REST + WebSocket)
+API GATEWAY (REST)
 https://api.consultia.es
 Authorization: Cognito JWT
         ↓
 LAMBDA FUNCTIONS (7 total)
 ├─ onboarding-api (Node.js 20.x, 512MB, 30s)
+├─ dashboard-api (Node.js 20.x, 512MB, 30s)
+├─ webhook-api (Node.js 20.x, 256MB, 30s) — unified Twilio + Stripe
 ├─ agent-deployment (Node.js 20.x, 512MB, 60s)
 ├─ knowledge-base-processor (Python 3.12, 3GB, 900s)
-├─ twilio-webhook (Node.js 20.x, 256MB, 10s)
-├─ stripe-webhook (Node.js 20.x, 256MB, 10s)
 ├─ usage-tracker (Python 3.12, 256MB, 15s)
 └─ business-scraper (Python 3.12, 1GB, 60s)
         ↓

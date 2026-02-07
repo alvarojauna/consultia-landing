@@ -12,8 +12,8 @@ export async function generateStaticParams() {
 }
 
 // Generate metadata for SEO
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params
+export async function generateMetadata({ params }: { params: { slug: string } }) {
+  const { slug } = params
   const industry = getIndustryBySlug(slug)
 
   if (!industry) {
@@ -28,8 +28,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   }
 }
 
-export default async function IndustryPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params
+export default async function IndustryPage({ params }: { params: { slug: string } }) {
+  const { slug } = params
   const industry = getIndustryBySlug(slug)
 
   if (!industry) {
@@ -71,7 +71,7 @@ export default async function IndustryPage({ params }: { params: Promise<{ slug:
             <div className="bg-dark border border-red-500/20 rounded-2xl p-8">
               <div className="text-red-500 font-semibold mb-4">❌ La Forma Antigua</div>
               <h3 className="text-2xl font-heading font-bold text-white mb-4">
-                Buzón de voz: "Llamada perdida de 91 XXX XX XX"
+                Buzón de voz: &quot;Llamada perdida de 91 XXX XX XX&quot;
               </h3>
               <p className="text-text-secondary">
                 Tú: Devolver llamada, filtrar, cualificar, perseguir...
@@ -82,7 +82,7 @@ export default async function IndustryPage({ params }: { params: Promise<{ slug:
             <div className="bg-primary/10 border border-primary/30 rounded-2xl p-8">
               <div className="text-primary font-semibold mb-4">✓ Con ConsultIA</div>
               <h3 className="text-2xl font-heading font-bold text-white mb-4">
-                Calendario: "{industry.stats[0].label}: Hoy 13:00, Cliente cualificado"
+                Calendario: &quot;{industry.stats[0].label}: Hoy 13:00, Cliente cualificado&quot;
               </h3>
               <p className="text-text-primary">
                 Tú: Presentarte y comenzar la relación directamente
@@ -161,7 +161,7 @@ export default async function IndustryPage({ params }: { params: Promise<{ slug:
       <section className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <h2 className="text-4xl sm:text-5xl font-heading font-bold text-white mb-12 text-center">
-            Por qué "tomar mensajes" no funciona para {industry.name.toLowerCase()}
+            Por qué &quot;tomar mensajes&quot; no funciona para {industry.name.toLowerCase()}
           </h2>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -295,7 +295,7 @@ export default async function IndustryPage({ params }: { params: Promise<{ slug:
                     <industry.icon className="h-6 w-6 text-primary" />
                   </div>
                   <div>
-                    <p className="text-text-primary leading-relaxed mb-4">"{example}"</p>
+                    <p className="text-text-primary leading-relaxed mb-4">&quot;{example}&quot;</p>
                     <div className="flex items-center gap-2 text-sm text-text-secondary">
                       <div className="flex gap-0.5">
                         {[1, 2, 3, 4, 5].map((star) => (

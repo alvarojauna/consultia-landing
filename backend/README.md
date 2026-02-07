@@ -8,7 +8,6 @@ Backend serverless para el sistema de creación de agentes de IA. Construido con
 ┌─────────────────────────────────────────────────────────────┐
 │                      API GATEWAY                            │
 │  REST API: https://api.consultia.es                        │
-│  WebSocket: wss://api.consultia.es                         │
 │  Authorizer: Cognito User Pools                            │
 └─────────────────────────────────────────────────────────────┘
                            ↓
@@ -115,22 +114,6 @@ backend/
 │   │   │   └── prompt-generator.ts # System prompt
 │   │   └── tests/
 │   │
-│   ├── twilio-webhook/       # Recibe eventos de llamadas
-│   │   ├── package.json
-│   │   ├── src/
-│   │   │   ├── index.ts
-│   │   │   ├── call-status.ts
-│   │   │   └── validate-signature.ts
-│   │   └── tests/
-│   │
-│   ├── stripe-webhook/       # Recibe eventos de subscripciones
-│   │   ├── package.json
-│   │   ├── src/
-│   │   │   ├── index.ts
-│   │   │   ├── subscription-events.ts
-│   │   │   └── validate-signature.ts
-│   │   └── tests/
-│   │
 │   ├── usage-tracker/        # Tracking de minutos consumidos
 │   │   ├── requirements.txt
 │   │   ├── lambda_function.py
@@ -189,9 +172,9 @@ npm install
 
 # Instalar dependencias de cada Lambda
 cd lambdas/onboarding-api && npm install && cd ../..
+cd lambdas/dashboard-api && npm install && cd ../..
+cd lambdas/webhook-api && npm install && cd ../..
 cd lambdas/agent-deployment && npm install && cd ../..
-cd lambdas/twilio-webhook && npm install && cd ../..
-cd lambdas/stripe-webhook && npm install && cd ../..
 
 # Para Lambdas Python, las dependencias se empaquetan en deploy
 ```
@@ -242,12 +225,12 @@ cdk synth
 # Desplegar todos los stacks
 cdk deploy --all
 
-# O desplegar stack por stack
-cdk deploy DatabaseStack
-cdk deploy ApiStack
-cdk deploy LambdaStack
-cdk deploy StorageStack
-cdk deploy StepFunctionsStack
+# O desplegar stack por stack (en orden de dependencia)
+cdk deploy ConsultIA-Database
+cdk deploy ConsultIA-Storage
+cdk deploy ConsultIA-ApiLambda
+cdk deploy ConsultIA-StepFunctions
+cdk deploy ConsultIA-Monitoring
 ```
 
 **Outputs importantes después del deploy:**
