@@ -205,21 +205,46 @@ export const api = {
 
   // Step 4: Knowledge base
   uploadKnowledgeBase: async (customerId: string, files: File[]): Promise<KBUploadResult[]> => {
-    const formData = new FormData()
-    files.forEach((file) => formData.append('files', file))
+    const results: KBUploadResult[] = []
 
-    const url = `${API_BASE_URL}/onboarding/${customerId}/knowledge-base/upload`
-    const token = typeof window !== 'undefined' ? localStorage.getItem('consultia_token') : null
+    for (const file of files) {
+      // 1. Get presigned URL from backend
+      const uploadMeta = await request<KBUploadResult>(
+        `/onboarding/${customerId}/knowledge-base/upload`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            file_name: file.name,
+            file_size: file.size,
+            content_type: file.type,
+          }),
+        }
+      )
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: formData,
-    })
+      // 2. Upload file binary directly to S3 via presigned URL
+      const s3Response = await fetch(uploadMeta.upload_url!, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      })
 
-    const json = await response.json()
-    if (!json.success) throw new ApiError(json.error?.code, json.error?.message, response.status)
-    return json.data
+      if (!s3Response.ok) {
+        throw new ApiError('S3_UPLOAD_ERROR', `Failed to upload ${file.name} to S3`, s3Response.status)
+      }
+
+      // 3. Confirm upload to trigger processing
+      await request<{ source_id: string; message: string }>(
+        `/onboarding/${customerId}/knowledge-base/confirm-upload`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ source_id: uploadMeta.source_id }),
+        }
+      )
+
+      results.push(uploadMeta)
+    }
+
+    return results
   },
 
   submitKnowledgeText: (customerId: string, text: string, category: string) =>
