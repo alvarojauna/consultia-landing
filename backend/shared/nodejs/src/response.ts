@@ -1,4 +1,5 @@
 import { ApiResponse } from './types';
+import { ValidationError } from './validation';
 
 /**
  * Create standardized success response for API Gateway
@@ -99,13 +100,13 @@ export function createCorsResponse(): {
  */
 export function parseBody<T>(body: string | null): T {
   if (!body) {
-    throw new Error('Request body is empty');
+    throw new ValidationError('Request body is empty');
   }
 
   try {
     return JSON.parse(body) as T;
   } catch (error) {
-    throw new Error('Invalid JSON in request body');
+    throw new ValidationError('Invalid JSON in request body');
   }
 }
 

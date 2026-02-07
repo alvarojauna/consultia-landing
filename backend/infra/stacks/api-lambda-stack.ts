@@ -102,7 +102,7 @@ export class ApiLambdaStack extends cdk.Stack {
     // Shared Lambda Config
     // ========================================
     const sharedLayer = new lambda.LayerVersion(this, 'SharedLayer', {
-      code: lambda.Code.fromAsset('../shared/nodejs'),
+      code: lambda.Code.fromAsset('../shared/layer-build'),
       compatibleRuntimes: [lambda.Runtime.NODEJS_20_X],
       description: 'Shared utilities for Node.js Lambda functions',
     });
@@ -127,11 +127,25 @@ export class ApiLambdaStack extends cdk.Stack {
         KNOWLEDGE_BASE_BUCKET: props.knowledgeBaseBucket.bucketName,
         FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3001',
         DEPLOY_REGION: this.region,
+        API_KEYS_SECRET_NAME: 'consultia/production/api-keys',
+        DEPLOY_AGENT_STATE_MACHINE_ARN: `arn:aws:states:${this.region}:${this.account}:stateMachine:consultia-deploy-agent`,
       },
     });
 
     props.databaseSecret.grantRead(this.onboardingApiFunction);
     props.knowledgeBaseBucket.grantReadWrite(this.onboardingApiFunction);
+
+    // Grant access to API keys secret (ElevenLabs, Stripe, Twilio)
+    const apiKeysSecret = secretsmanager.Secret.fromSecretNameV2(this, 'ApiKeysSecret', 'consultia/production/api-keys');
+    apiKeysSecret.grantRead(this.onboardingApiFunction);
+
+    // Grant permission to start Step Functions executions
+    this.onboardingApiFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['states:StartExecution'],
+        resources: [`arn:aws:states:${this.region}:${this.account}:stateMachine:consultia-deploy-agent`],
+      })
+    );
 
     // API Gateway routes — Onboarding
     const onboardingResource = this.api.root.addResource('onboarding');
@@ -241,7 +255,7 @@ export class ApiLambdaStack extends cdk.Stack {
       memorySize: 512,
       vpc: props.vpc, vpcSubnets, securityGroups,
       layers: [sharedLayer],
-      environment: { DB_SECRET_NAME: props.databaseSecret.secretName, ACTION: 'create-agent' },
+      environment: { DB_SECRET_NAME: props.databaseSecret.secretName, API_KEYS_SECRET_NAME: 'consultia/production/api-keys', ACTION: 'create-agent' },
     });
 
     this.provisionNumberFunction = new lambda.Function(this, 'ProvisionNumberFunction', {
@@ -253,7 +267,7 @@ export class ApiLambdaStack extends cdk.Stack {
       memorySize: 512,
       vpc: props.vpc, vpcSubnets, securityGroups,
       layers: [sharedLayer],
-      environment: { DB_SECRET_NAME: props.databaseSecret.secretName, ACTION: 'provision-number' },
+      environment: { DB_SECRET_NAME: props.databaseSecret.secretName, API_KEYS_SECRET_NAME: 'consultia/production/api-keys', ACTION: 'provision-number' },
     });
 
     this.linkNumberFunction = new lambda.Function(this, 'LinkNumberFunction', {
@@ -265,7 +279,7 @@ export class ApiLambdaStack extends cdk.Stack {
       memorySize: 256,
       vpc: props.vpc, vpcSubnets, securityGroups,
       layers: [sharedLayer],
-      environment: { DB_SECRET_NAME: props.databaseSecret.secretName, ACTION: 'link-number' },
+      environment: { DB_SECRET_NAME: props.databaseSecret.secretName, API_KEYS_SECRET_NAME: 'consultia/production/api-keys', ACTION: 'link-number' },
     });
 
     this.updateDatabaseFunction = new lambda.Function(this, 'UpdateDatabaseFunction', {
@@ -280,9 +294,12 @@ export class ApiLambdaStack extends cdk.Stack {
       environment: { DB_SECRET_NAME: props.databaseSecret.secretName, ACTION: 'update-database' },
     });
 
-    // Grant DB secret read to all agent functions
+    // Grant DB secret + API keys read to all agent functions
     [this.createAgentFunction, this.provisionNumberFunction, this.linkNumberFunction, this.updateDatabaseFunction]
-      .forEach((fn) => props.databaseSecret.grantRead(fn));
+      .forEach((fn) => {
+        props.databaseSecret.grantRead(fn);
+        apiKeysSecret.grantRead(fn);
+      });
 
     // ========================================
     // Outputs

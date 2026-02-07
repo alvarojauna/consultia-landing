@@ -87,7 +87,7 @@ export async function initializePool(): Promise<Pool> {
     idleTimeoutMillis: 30000, // Close idle connections after 30s
     connectionTimeoutMillis: 2000,
     ssl: {
-      rejectUnauthorized: true, // Enforce SSL for Aurora
+      rejectUnauthorized: false, // Aurora in VPC — SSL encrypts traffic, cert verification skipped (no RDS CA bundle in runtime)
     },
   });
 

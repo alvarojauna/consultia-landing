@@ -136,6 +136,7 @@ export async function handleTestCall(
 
     return createSuccessResponse(response, 201, requestId);
   } catch (error: any) {
+    if (error.name === 'ValidationError') throw error;
     console.error('[Test Call Error]', error);
 
     // Handle Twilio API errors

@@ -114,7 +114,7 @@ async function selectVoice(
         $5,
         'deploying'
       )
-      ON CONFLICT (customer_id, elevenlabs_agent_id)
+      ON CONFLICT (elevenlabs_agent_id)
       DO UPDATE SET
         voice_id = EXCLUDED.voice_id,
         voice_name = EXCLUDED.voice_name
@@ -155,6 +155,7 @@ async function selectVoice(
       requestId
     );
   } catch (error: any) {
+    if (error.name === 'ValidationError') throw error;
     console.error('[Select Voice Error]', error);
 
     return createErrorResponse(

@@ -140,6 +140,7 @@ export async function handleKnowledgeBaseUpload(
 
     return createSuccessResponse(response, 200, requestId);
   } catch (error: any) {
+    if (error.name === 'ValidationError') throw error;
     console.error('[KB Upload Error]', error);
 
     return createErrorResponse(

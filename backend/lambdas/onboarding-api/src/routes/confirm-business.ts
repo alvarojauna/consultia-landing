@@ -61,9 +61,10 @@ export async function handleConfirmBusiness(
     });
 
     // Use transaction to update both customers and business_info atomically
+    let customerUpdated = false;
     await transaction(async (client) => {
       // Update customer record with confirmed business info
-      await client.query(
+      const result = await client.query(
         `UPDATE customers
          SET business_name = $1,
              business_address = $2,
@@ -75,17 +76,31 @@ export async function handleConfirmBusiness(
         [business_name, business_address, business_phone, industry, customerId]
       );
 
-      // Update business_info with confirmed data
-      await client.query(
-        `UPDATE business_info
-         SET services = $1,
-             hours = $2,
-             confirmed = TRUE,
-             confirmed_at = CURRENT_TIMESTAMP
-         WHERE customer_id = $3`,
-        [services || [], JSON.stringify(hours || {}), customerId]
-      );
+      customerUpdated = (result.rowCount ?? 0) > 0;
+
+      if (customerUpdated) {
+        // Update business_info with confirmed data
+        await client.query(
+          `UPDATE business_info
+           SET services = $1,
+               hours = $2,
+               confirmed = TRUE,
+               confirmed_at = CURRENT_TIMESTAMP
+           WHERE customer_id = $3`,
+          [services || [], JSON.stringify(hours || {}), customerId]
+        );
+      }
     });
+
+    if (!customerUpdated) {
+      return createErrorResponse(
+        'CUSTOMER_NOT_FOUND',
+        `Customer ${customerId} not found`,
+        404,
+        null,
+        requestId
+      );
+    }
 
     console.log('[Confirm Business] Successfully updated', { customerId });
 
@@ -100,6 +115,7 @@ export async function handleConfirmBusiness(
       requestId
     );
   } catch (error: any) {
+    if (error.name === 'ValidationError') throw error;
     console.error('[Confirm Business Error]', error);
 
     return createErrorResponse(

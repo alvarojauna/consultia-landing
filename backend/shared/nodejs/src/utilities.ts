@@ -1,19 +1,20 @@
 import { APIGatewayProxyEvent } from 'aws-lambda';
 import { getSecret } from './secrets';
 import { createErrorResponse } from './response';
+import { ValidationError } from './validation';
 
 /**
  * Parse JSON body from API Gateway event
  */
 export function parseBody<T = any>(body: string | null): T {
   if (!body) {
-    throw new Error('Request body is empty');
+    throw new ValidationError('Request body is empty');
   }
 
   try {
     return JSON.parse(body) as T;
   } catch (error) {
-    throw new Error('Invalid JSON in request body');
+    throw new ValidationError('Invalid JSON in request body');
   }
 }
 

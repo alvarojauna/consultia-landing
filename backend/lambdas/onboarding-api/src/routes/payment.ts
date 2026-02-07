@@ -105,6 +105,7 @@ export async function handleSelectPlan(
       requestId
     );
   } catch (error: any) {
+    if (error.name === 'ValidationError') throw error;
     console.error('[Select Plan Error]', { requestId, message: error.message });
 
     return createErrorResponse(
@@ -323,6 +324,7 @@ export async function handleCompletePayment(
       requestId
     );
   } catch (error: any) {
+    if (error.name === 'ValidationError') throw error;
     console.error('[Complete Payment Error]', error);
 
     // Handle Stripe API errors (expose Stripe user-facing message, not internals)

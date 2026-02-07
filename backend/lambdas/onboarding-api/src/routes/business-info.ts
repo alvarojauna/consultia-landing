@@ -126,6 +126,7 @@ export async function handleBusinessInfo(
 
     return createSuccessResponse(response, 201, requestId);
   } catch (error: any) {
+    if (error.name === 'ValidationError') throw error;
     console.error('[Business Info Error]', error);
 
     return createErrorResponse(
