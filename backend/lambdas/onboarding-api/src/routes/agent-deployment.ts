@@ -30,10 +30,10 @@ export async function handleDeployAgent(
 
     console.log('[Deploy Agent] Starting deployment', { customerId });
 
-    // Get customer info
+    // Get customer info (use confirmed_data JSONB for business details)
     const customerResult = await query(
       `SELECT c.customer_id, c.business_name, c.business_address, c.industry,
-              bi.services, bi.hours, bi.contacts
+              bi.confirmed_data, bi.scraped_data
        FROM customers c
        LEFT JOIN business_info bi ON bi.customer_id = c.customer_id
        WHERE c.customer_id = $1`,
@@ -51,6 +51,9 @@ export async function handleDeployAgent(
     }
 
     const customer = customerResult.rows[0];
+
+    // Extract business details from JSONB (prefer confirmed_data, fallback to scraped_data)
+    const businessData = customer.confirmed_data || customer.scraped_data || {};
 
     // Get agent info (voice selection from Step 3)
     const agentResult = await query(
@@ -92,12 +95,15 @@ export async function handleDeployAgent(
       voice_id: agent.voice_id,
       voice_name: agent.voice_name,
       business: {
-        name: customer.business_name,
-        address: customer.business_address,
-        industry: customer.industry,
-        services: customer.services || [],
-        hours: customer.hours || {},
-        contacts: customer.contacts || {},
+        name: customer.business_name || businessData.business_name,
+        address: customer.business_address || businessData.business_address || businessData.address,
+        industry: customer.industry || businessData.industry,
+        services: businessData.services || [],
+        hours: businessData.hours || {},
+        contacts: {
+          phone: businessData.business_phone || businessData.phone,
+          email: businessData.email,
+        },
       },
       knowledge_base: knowledge_base
         ? {
@@ -146,9 +152,9 @@ export async function handleDeployAgent(
 
     return createErrorResponse(
       'DEPLOY_AGENT_ERROR',
-      error.message,
+      'Failed to deploy agent',
       500,
-      { details: error },
+      null,
       requestId
     );
   }
@@ -164,12 +170,13 @@ export async function getDeployStatus(
   requestId: string
 ): Promise<APIGatewayProxyResult> {
   try {
-    // Get agent status with customer name and KB stats
+    console.log('[Deploy Status] Checking status for customer:', customerId);
+
+    // Get agent status with customer name (separate query for phone to handle table not existing)
     const agentResult = await query(
       `SELECT a.agent_id, a.elevenlabs_agent_id, a.status, a.error_message,
-              a.deployed_at, p.phone_number, c.business_name
+              a.deployed_at, c.business_name
        FROM agents a
-       LEFT JOIN phone_numbers p ON p.agent_id = a.agent_id
        LEFT JOIN customers c ON c.customer_id = a.customer_id
        WHERE a.customer_id = $1
        ORDER BY a.created_at DESC
@@ -177,7 +184,22 @@ export async function getDeployStatus(
       [customerId]
     );
 
+    // Try to get phone number separately (table may not exist yet)
+    let phoneNumber: string | null = null;
+    if (agentResult.rows.length > 0) {
+      try {
+        const phoneResult = await query(
+          `SELECT phone_number FROM phone_numbers WHERE agent_id = $1 LIMIT 1`,
+          [agentResult.rows[0].agent_id]
+        );
+        phoneNumber = phoneResult.rows[0]?.phone_number || null;
+      } catch (phoneErr: any) {
+        console.warn('[Deploy Status] Phone query failed (table may not exist):', phoneErr.message);
+      }
+    }
+
     if (agentResult.rows.length === 0) {
+      console.log('[Deploy Status] No agent found for customer');
       return createSuccessResponse(
         {
           status: 'not_started',
@@ -190,17 +212,25 @@ export async function getDeployStatus(
     }
 
     const agent = agentResult.rows[0];
+    console.log('[Deploy Status] Agent found:', { agent_id: agent.agent_id, status: agent.status });
 
-    // Get KB stats for the agent info card
-    const kbResult = await query(
-      `SELECT COUNT(*)::int AS total_sources,
-              COUNT(*) FILTER (WHERE ks.processing_status = 'complete')::int AS processed
-       FROM kb_sources ks
-       JOIN knowledge_bases kb ON kb.kb_id = ks.kb_id
-       WHERE kb.customer_id = $1`,
-      [customerId]
-    );
-    const kbStats = kbResult.rows[0] || { total_sources: 0, processed: 0 };
+    // Get KB stats - use COALESCE to handle empty results
+    let kbStats = { total_sources: 0, processed: 0 };
+    try {
+      const kbResult = await query(
+        `SELECT COALESCE(COUNT(ks.source_id), 0)::int AS total_sources,
+                COALESCE(COUNT(ks.source_id) FILTER (WHERE ks.processing_status = 'complete'), 0)::int AS processed
+         FROM knowledge_bases kb
+         LEFT JOIN kb_sources ks ON ks.kb_id = kb.kb_id
+         WHERE kb.customer_id = $1`,
+        [customerId]
+      );
+      if (kbResult.rows.length > 0) {
+        kbStats = kbResult.rows[0];
+      }
+    } catch (kbError: any) {
+      console.warn('[Deploy Status] KB stats query failed, using defaults:', kbError.message);
+    }
 
     return createSuccessResponse(
       {
@@ -208,7 +238,7 @@ export async function getDeployStatus(
         agent_id: agent.agent_id,
         elevenlabs_agent_id:
           agent.elevenlabs_agent_id?.startsWith('temp_') ? null : agent.elevenlabs_agent_id,
-        phone_number: agent.phone_number,
+        phone_number: phoneNumber,
         deployed_at: agent.deployed_at,
         error_message: agent.error_message,
         agent_name: agent.business_name ? `${agent.business_name} - Recepcionista` : null,
@@ -219,11 +249,11 @@ export async function getDeployStatus(
       requestId
     );
   } catch (error: any) {
-    console.error('[Deploy Status Error]', error);
+    console.error('[Deploy Status Error]', error.message, error.stack);
 
     return createErrorResponse(
       'DEPLOY_STATUS_ERROR',
-      error.message,
+      `Failed to retrieve deployment status: ${error.message}`,
       500,
       null,
       requestId

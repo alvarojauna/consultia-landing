@@ -76,6 +76,7 @@ export class StepFunctionsStack extends cdk.Stack {
         'agent_id.$': '$.agent_id',
         'phone_number.$': '$.phone_number',
         'phone_id.$': '$.phone_id',
+        'elevenlabs_agent_id.$': '$.elevenlabs_agent_id', // Pass through for UpdateDatabase
       }),
       outputPath: '$.Payload',
       retryOnServiceExceptions: true,
