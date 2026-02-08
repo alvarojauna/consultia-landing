@@ -20,7 +20,12 @@ const uploadSchema = Joi.object({
   file_name: Joi.string().required(),
   file_size: Joi.number().max(10 * 1024 * 1024).required(), // Max 10MB
   content_type: Joi.string()
-    .valid('application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain')
+    .valid(
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+      'text/plain'
+    )
     .required(),
 });
 
@@ -52,7 +57,7 @@ export async function handleKnowledgeBaseUpload(
       file_name: string;
       file_size: number;
       content_type: string;
-    }>(event.body);
+    }>(event.body, event.isBase64Encoded);
 
     // Validate request
     const { error, value } = uploadSchema.validate(body);
@@ -76,9 +81,13 @@ export async function handleKnowledgeBaseUpload(
     });
 
     // Determine file extension
+    // Note: application/msword (.doc) is mapped to 'docx' — python-docx handles
+    // modern .doc files that are actually .docx with wrong extension. True legacy
+    // .doc files will fail at the processor with a clear error.
     const ext = content_type === 'application/pdf'
       ? 'pdf'
       : content_type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        || content_type === 'application/msword'
       ? 'docx'
       : 'txt';
 
@@ -145,7 +154,7 @@ export async function handleKnowledgeBaseUpload(
 
     return createErrorResponse(
       'KB_UPLOAD_ERROR',
-      error.message,
+      'Failed to process knowledge base upload',
       500,
       null,
       requestId
@@ -164,7 +173,7 @@ async function handleKnowledgeBaseText(
 ): Promise<APIGatewayProxyResult> {
   try {
     const customerId = getCustomerIdFromPath(event);
-    const body = parseBody<KnowledgeBaseTextRequest>(event.body);
+    const body = parseBody<KnowledgeBaseTextRequest>(event.body, event.isBase64Encoded);
 
     // Validate request
     const { error, value } = textSchema.validate(body);
@@ -220,10 +229,21 @@ async function handleKnowledgeBaseText(
     );
 
     // Trigger processing (SQS message to knowledge-base-processor Lambda)
+    if (!process.env.KB_PROCESSING_QUEUE_URL) {
+      console.error('[KB Text] KB_PROCESSING_QUEUE_URL not configured');
+      return createErrorResponse(
+        'CONFIG_ERROR',
+        'Knowledge base processing is not configured',
+        500,
+        null,
+        requestId
+      );
+    }
+
     try {
       await sqs
         .sendMessage({
-          QueueUrl: process.env.KB_PROCESSING_QUEUE_URL!,
+          QueueUrl: process.env.KB_PROCESSING_QUEUE_URL,
           MessageBody: JSON.stringify({
             source_id,
             kb_id,
@@ -234,8 +254,20 @@ async function handleKnowledgeBaseText(
         .promise();
 
       console.log('[KB Text] Processing job queued', { source_id });
-    } catch (sqsError) {
+    } catch (sqsError: any) {
       console.error('[KB Text] Failed to queue processing job', sqsError);
+      // Update source status to error so polling doesn't hang
+      await query(
+        `UPDATE kb_sources SET processing_status = 'error', error_message = $1 WHERE source_id = $2`,
+        [`Failed to queue processing: ${sqsError.message}`, source_id]
+      );
+      return createErrorResponse(
+        'QUEUE_ERROR',
+        'Failed to start knowledge base processing',
+        500,
+        null,
+        requestId
+      );
     }
 
     return createSuccessResponse(
@@ -252,11 +284,80 @@ async function handleKnowledgeBaseText(
 
     return createErrorResponse(
       'KB_TEXT_ERROR',
-      error.message,
+      'Failed to process knowledge base text',
       500,
       null,
       requestId
     );
+  }
+}
+
+/**
+ * POST /onboarding/:customerId/knowledge-base/confirm-upload
+ *
+ * Step 4b: Confirm file was uploaded to S3 and trigger processing
+ */
+export async function handleConfirmUpload(
+  event: APIGatewayProxyEvent,
+  requestId: string
+): Promise<APIGatewayProxyResult> {
+  try {
+    const customerId = getCustomerIdFromPath(event);
+    const body = parseBody<{ source_id: string }>(event.body, event.isBase64Encoded);
+
+    if (!body.source_id) {
+      return createErrorResponse('VALIDATION_ERROR', 'source_id is required', 400, null, requestId);
+    }
+
+    const { source_id } = body;
+
+    // Verify the kb_source record exists and belongs to this customer
+    const sourceResult = await query(
+      `SELECT ks.source_id, ks.kb_id, ks.s3_key, ks.processing_status, kb.customer_id
+       FROM kb_sources ks
+       JOIN knowledge_bases kb ON kb.kb_id = ks.kb_id
+       WHERE ks.source_id = $1 AND kb.customer_id = $2`,
+      [source_id, customerId]
+    );
+
+    if (sourceResult.rows.length === 0) {
+      return createErrorResponse('NOT_FOUND', 'Source not found for this customer', 404, null, requestId);
+    }
+
+    const source = sourceResult.rows[0];
+
+    if (source.processing_status !== 'pending') {
+      return createErrorResponse('INVALID_STATE', `Source already in state: ${source.processing_status}`, 409, null, requestId);
+    }
+
+    // Verify file exists in S3
+    const bucket = process.env.KNOWLEDGE_BASE_BUCKET!;
+    try {
+      await s3.headObject({ Bucket: bucket, Key: source.s3_key }).promise();
+    } catch (s3Error: any) {
+      console.error('[KB ConfirmUpload] File not found in S3', { source_id, s3_key: source.s3_key, error: s3Error.code });
+      return createErrorResponse('FILE_NOT_FOUND', 'File has not been uploaded to S3 yet', 400, null, requestId);
+    }
+
+    // Send SQS message to trigger processing
+    await sqs
+      .sendMessage({
+        QueueUrl: process.env.KB_PROCESSING_QUEUE_URL!,
+        MessageBody: JSON.stringify({
+          source_id,
+          kb_id: source.kb_id,
+          customer_id: customerId,
+          source_type: 'file',
+        }),
+      })
+      .promise();
+
+    console.log('[KB ConfirmUpload] Processing job queued', { source_id });
+
+    return createSuccessResponse({ source_id, message: 'Processing triggered' }, 200, requestId);
+  } catch (error: any) {
+    console.error('[KB ConfirmUpload Error]', error);
+    return createErrorResponse('KB_CONFIRM_ERROR', 'Failed to confirm upload', 500, null, requestId);
   }
 }
 
@@ -281,9 +382,12 @@ export async function getKnowledgeBaseStatus(
     if (kbResult.rows.length === 0) {
       return createSuccessResponse(
         {
-          status: 'not_started',
+          status: 'pending',
           progress: 0,
+          total_sources: 0,
+          processed_sources: 0,
           sources: [],
+          has_structured_data: false,
         },
         200,
         requestId
@@ -324,7 +428,7 @@ export async function getKnowledgeBaseStatus(
 
     return createErrorResponse(
       'KB_STATUS_ERROR',
-      error.message,
+      'Failed to retrieve knowledge base status',
       500,
       null,
       requestId

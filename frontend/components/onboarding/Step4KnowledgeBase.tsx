@@ -36,6 +36,8 @@ export default function Step4KnowledgeBase() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pollRef = useRef<NodeJS.Timeout | null>(null)
   const mountedRef = useRef(true)
+  const pollCountRef = useRef(0)
+  const MAX_POLL_ATTEMPTS = 60 // Max 3 minutes of polling (60 * 3s)
 
   // Cleanup polling on unmount
   useEffect(() => {
@@ -78,6 +80,16 @@ export default function Step4KnowledgeBase() {
 
   const pollStatus = useCallback(async () => {
     if (!mountedRef.current) return
+
+    pollCountRef.current += 1
+
+    // Prevent infinite polling
+    if (pollCountRef.current > MAX_POLL_ATTEMPTS) {
+      setProcessing(false)
+      setError('El procesamiento está tardando demasiado. Por favor, recarga la página e intenta de nuevo.')
+      return
+    }
+
     try {
       const status = await api.getKBStatus(state.customerId!)
       if (!mountedRef.current) return
@@ -85,16 +97,18 @@ export default function Step4KnowledgeBase() {
 
       if (status.status === 'complete') {
         setProcessing(false)
+        pollCountRef.current = 0
         return
       }
 
       if (status.status === 'error') {
         setProcessing(false)
+        pollCountRef.current = 0
         setError('Error al procesar la base de conocimiento. Inténtalo de nuevo.')
         return
       }
 
-      // Keep polling
+      // Keep polling for 'pending' and 'processing' statuses
       pollRef.current = setTimeout(pollStatus, 3000)
     } catch {
       if (mountedRef.current) {
@@ -111,6 +125,7 @@ export default function Step4KnowledgeBase() {
 
     setUploading(true)
     setError('')
+    pollCountRef.current = 0
 
     try {
       await api.uploadKnowledgeBase(state.customerId!, files)
@@ -131,6 +146,7 @@ export default function Step4KnowledgeBase() {
 
     setUploading(true)
     setError('')
+    pollCountRef.current = 0
 
     try {
       await api.submitKnowledgeText(state.customerId!, manualText, category)

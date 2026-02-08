@@ -130,10 +130,18 @@ export interface KBUploadResult {
 }
 
 export interface KBStatus {
+  kb_id?: string
   status: 'pending' | 'processing' | 'complete' | 'error'
   progress: number
   total_sources: number
   processed_sources: number
+  sources?: Array<{
+    source_id: string
+    source_type: string
+    file_name: string
+    processing_status: string
+  }>
+  has_structured_data?: boolean
   structured_data_preview?: any
 }
 
