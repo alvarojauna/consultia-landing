@@ -151,12 +151,14 @@ export interface DeployResult {
 }
 
 export interface DeployStatus {
-  status: 'creating_agent' | 'provisioning_number' | 'linking' | 'complete' | 'error'
+  status: 'not_started' | 'deploying' | 'creating_agent' | 'provisioning_number' | 'linking' | 'complete' | 'active' | 'error'
   agent_id?: string
+  elevenlabs_agent_id?: string
   phone_number?: string
   agent_name?: string
   docs_processed?: number
   faqs_extracted?: number
+  error_message?: string
 }
 
 export interface TestCallResult {

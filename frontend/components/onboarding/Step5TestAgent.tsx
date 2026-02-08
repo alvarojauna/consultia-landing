@@ -57,7 +57,8 @@ export default function Step5TestAgent() {
       if (!mountedRef.current) return
       setDeployStatus(status)
 
-      if (status.status === 'complete') {
+      // Check if deployment is complete (backend uses 'active' status)
+      if (status.status === 'complete' || status.status === 'active') {
         updateState({
           agentId: status.agent_id || state.agentId,
           phoneNumber: status.phone_number || null,
@@ -132,7 +133,16 @@ export default function Step5TestAgent() {
         return 'Asignando número de teléfono...'
       case 'linking':
         return 'Conectando agente al número...'
+      case 'deploying':
+        // Check if ElevenLabs agent was created to show more specific progress
+        if (status?.elevenlabs_agent_id) {
+          return status?.phone_number
+            ? 'Finalizando configuración...'
+            : 'Asignando número de teléfono...'
+        }
+        return 'Creando agente en ElevenLabs...'
       case 'complete':
+      case 'active':
         return '¡Agente desplegado!'
       default:
         return 'Iniciando despliegue...'
