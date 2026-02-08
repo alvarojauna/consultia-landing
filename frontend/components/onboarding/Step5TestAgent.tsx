@@ -27,12 +27,35 @@ export default function Step5TestAgent() {
     }
   }, [])
 
-  // Start deployment on mount
+  // Check status and start deployment on mount
   useEffect(() => {
     let cancelled = false
 
-    const deploy = async () => {
+    const checkAndDeploy = async () => {
       try {
+        // First check if already deployed
+        const status = await api.getDeployStatus(state.customerId!)
+        if (cancelled) return
+
+        // If already active/complete, go directly to ready phase
+        if (status.status === 'active' || status.status === 'complete') {
+          setDeployStatus(status)
+          updateState({
+            agentId: status.agent_id || state.agentId,
+            phoneNumber: status.phone_number || null,
+          })
+          setPhase('ready')
+          return
+        }
+
+        // If deploying, just poll for status
+        if (status.status === 'deploying') {
+          setDeployStatus(status)
+          pollDeployStatus()
+          return
+        }
+
+        // Otherwise, start deployment
         const result = await api.deployAgent(state.customerId!)
         if (cancelled) return
         updateState({ agentId: result.agent_id })
@@ -44,7 +67,7 @@ export default function Step5TestAgent() {
       }
     }
 
-    deploy()
+    checkAndDeploy()
 
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
