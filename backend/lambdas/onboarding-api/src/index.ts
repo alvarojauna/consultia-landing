@@ -14,7 +14,7 @@ import {
 import { handleBusinessInfo } from './routes/business-info';
 import { handleConfirmBusiness } from './routes/confirm-business';
 import { handleSelectVoice } from './routes/voice-selection';
-import { handleKnowledgeBaseUpload, getKnowledgeBaseStatus } from './routes/knowledge-base';
+import { handleKnowledgeBaseUpload, handleConfirmUpload, getKnowledgeBaseStatus } from './routes/knowledge-base';
 import { handleDeployAgent, getDeployStatus } from './routes/agent-deployment';
 import { handleTestCall, getTestCallStatus } from './routes/test-call';
 import { handleSelectPlan, handleCreateCheckout, handleCompletePayment } from './routes/payment';
@@ -32,6 +32,7 @@ import { handleSelectPlan, handleCreateCheckout, handleCompletePayment } from '.
  *
  * POST   /onboarding/:customerId/knowledge-base/upload
  * POST   /onboarding/:customerId/knowledge-base/text
+ * POST   /onboarding/:customerId/knowledge-base/confirm-upload
  * GET    /onboarding/:customerId/knowledge-base/status
  *
  * POST   /onboarding/:customerId/deploy-agent
@@ -87,7 +88,7 @@ export const handler = async (
 
       // Query business_info for scraping results
       const biResult = await query(
-        `SELECT scraped_data, services, hours, contacts, confirmed, scraped_at
+        `SELECT scraped_data, scraping_status, confirmed_data, scraped_at
          FROM business_info WHERE customer_id = $1`,
         [rawCustomerId]
       );
@@ -99,16 +100,16 @@ export const handler = async (
       const bi = biResult.rows[0];
       const sd = bi.scraped_data || {};
 
-      // Check if scraper returned an error
-      if (sd.error || sd.status === 'error') {
+      // Check scraping_status from database
+      if (bi.scraping_status === 'error') {
         return createSuccessResponse({
-          status: 'complete',
+          status: 'error',
           scraped_data: { error: sd.error || 'Scraping failed' },
         }, 200, requestId);
       }
 
-      // Check if scraper populated real data (has business_name beyond initial website/country_code)
-      if (sd.business_name) {
+      // Check if scraping is complete (scraper updates scraping_status to 'complete')
+      if (bi.scraping_status === 'complete' && sd.business_name) {
         return createSuccessResponse({
           status: 'complete',
           scraped_data: {
@@ -116,8 +117,8 @@ export const handler = async (
             address: sd.address || '',
             phone: sd.phone || '',
             email: sd.email || '',
-            services: bi.services || sd.services || [],
-            hours: bi.hours || sd.hours || {},
+            services: sd.services || [],
+            hours: sd.hours || {},
             industry: sd.industry || '',
             description: sd.description || '',
             social_media: sd.social_media || {},
@@ -125,7 +126,7 @@ export const handler = async (
         }, 200, requestId);
       }
 
-      // Scraper hasn't finished yet — still only initial {website, country_code}
+      // Scraper hasn't finished yet — still pending or processing
       return createSuccessResponse({ status: 'pending', scraped_data: null }, 200, requestId);
     }
 
@@ -172,6 +173,13 @@ export const handler = async (
     }
 
     if (
+      httpMethod === 'POST' &&
+      path.match(/^\/onboarding\/[^/]+\/knowledge-base\/confirm-upload$/)
+    ) {
+      return await handleConfirmUpload(event, requestId);
+    }
+
+    if (
       httpMethod === 'GET' &&
       path.match(/^\/onboarding\/[^/]+\/knowledge-base\/status$/)
     ) {
@@ -205,7 +213,9 @@ export const handler = async (
       httpMethod === 'GET' &&
       path.match(/^\/onboarding\/[^/]+\/test-call\/[^/]+\/status$/)
     ) {
-      const callSid = event.pathParameters?.callSid;
+      // Extract callSid from path since it's inside the proxy path
+      const callSidMatch = path.match(/\/test-call\/([^/]+)\/status$/);
+      const callSid = callSidMatch ? callSidMatch[1] : null;
       if (!rawCustomerId || !callSid) {
         return createErrorResponse('INVALID_REQUEST', 'customerId and callSid are required', 400, null, requestId);
       }
@@ -278,6 +288,39 @@ export const handler = async (
       path.match(/^\/onboarding\/[^/]+\/complete-payment$/)
     ) {
       return await handleCompletePayment(event, requestId);
+    }
+
+    // ========================================
+    // Debug: Create test_calls table
+    // ========================================
+    if (httpMethod === 'POST' && path === '/debug/create-test-calls-table') {
+      try {
+        await query(`
+          CREATE TABLE IF NOT EXISTS test_calls (
+            test_call_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            customer_id UUID NOT NULL REFERENCES customers(customer_id) ON DELETE CASCADE,
+            agent_id UUID REFERENCES agents(agent_id) ON DELETE SET NULL,
+            test_phone_number VARCHAR(50) NOT NULL,
+            call_sid VARCHAR(255) UNIQUE NOT NULL,
+            status VARCHAR(50) DEFAULT 'queued' CHECK (
+              status IN ('queued', 'ringing', 'in-progress', 'completed', 'failed', 'busy', 'no-answer', 'canceled')
+            ),
+            duration_seconds INTEGER,
+            recording_url TEXT,
+            transcript TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            completed_at TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          )
+        `, []);
+
+        await query(`CREATE INDEX IF NOT EXISTS idx_test_calls_customer ON test_calls(customer_id)`, []);
+        await query(`CREATE INDEX IF NOT EXISTS idx_test_calls_call_sid ON test_calls(call_sid)`, []);
+
+        return createSuccessResponse({ message: 'test_calls table created successfully' }, 200, requestId);
+      } catch (err: any) {
+        return createErrorResponse('DB_ERROR', err.message, 500, null, requestId);
+      }
     }
 
     // ========================================

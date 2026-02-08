@@ -33,7 +33,7 @@ export async function handleTestCall(
 ): Promise<APIGatewayProxyResult> {
   try {
     const customerId = getCustomerIdFromPath(event);
-    const body = parseBody<TestCallRequest>(event.body);
+    const body = parseBody<TestCallRequest>(event.body, event.isBase64Encoded);
 
     // Validate request
     const { error, value } = testCallSchema.validate(body);
@@ -81,15 +81,22 @@ export async function handleTestCall(
     // Make outbound call via Twilio API
     const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Calls.json`;
 
-    const callData = new URLSearchParams({
-      To: test_phone_number,
-      From: agent.phone_number,
-      Url: agent.webhook_url, // ElevenLabs webhook
-      StatusCallback: `${process.env.API_BASE_URL}/webhooks/twilio/test-call-status/${customerId}`,
-      StatusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'].join(','),
-      StatusCallbackMethod: 'POST',
-      Record: 'true', // Record the call for testing
-    });
+    // Use our voice webhook that will register the call with ElevenLabs
+    // and return proper TwiML for outbound calls
+    const voiceWebhookUrl = `${process.env.API_BASE_URL}/webhooks/twilio/voice/${customerId}`;
+
+    const callData = new URLSearchParams();
+    callData.append('To', test_phone_number);
+    callData.append('From', agent.phone_number);
+    callData.append('Url', voiceWebhookUrl); // Our webhook that connects to ElevenLabs
+    callData.append('StatusCallback', `${process.env.API_BASE_URL}/webhooks/twilio/test-call-status/${customerId}`);
+    // Twilio requires each StatusCallbackEvent as a separate parameter
+    callData.append('StatusCallbackEvent', 'initiated');
+    callData.append('StatusCallbackEvent', 'ringing');
+    callData.append('StatusCallbackEvent', 'answered');
+    callData.append('StatusCallbackEvent', 'completed');
+    callData.append('StatusCallbackMethod', 'POST');
+    callData.append('Record', 'true'); // Record the call for testing
 
     console.log('[Test Call] Initiating Twilio call', {
       from: agent.phone_number,
@@ -152,7 +159,7 @@ export async function handleTestCall(
 
     return createErrorResponse(
       'TEST_CALL_ERROR',
-      error.message,
+      'Failed to initiate test call',
       500,
       null,
       requestId
@@ -210,7 +217,7 @@ export async function getTestCallStatus(
 
     return createErrorResponse(
       'TEST_CALL_STATUS_ERROR',
-      error.message,
+      'Failed to retrieve test call status',
       500,
       null,
       requestId

@@ -338,7 +338,7 @@ export interface TwilioCallStatusWebhook {
   AccountSid: string;
   From: string;
   To: string;
-  CallStatus: 'initiated' | 'ringing' | 'answered' | 'completed' | 'busy' | 'failed' | 'no-answer';
+  CallStatus: 'initiated' | 'ringing' | 'answered' | 'completed' | 'busy' | 'failed' | 'no-answer' | 'canceled';
   Direction: 'inbound' | 'outbound-api';
   Duration?: string;
   RecordingUrl?: string;

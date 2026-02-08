@@ -153,7 +153,7 @@ export async function handleTestCallStatus(
   console.log('[Test Call Status]', { customerId, CallSid, CallStatus, Duration });
 
   // Update test_calls record
-  const updateFields: string[] = ['status = $1'];
+  const updateFields: string[] = ['status = $1', 'updated_at = CURRENT_TIMESTAMP'];
   const updateValues: any[] = [CallStatus];
   let paramIndex = 2;
 
@@ -167,6 +167,11 @@ export async function handleTestCallStatus(
     updateFields.push(`recording_url = $${paramIndex}`);
     updateValues.push(RecordingUrl);
     paramIndex++;
+  }
+
+  // Set completed_at when call ends
+  if (CallStatus === 'completed' || CallStatus === 'failed' || CallStatus === 'busy' || CallStatus === 'no-answer' || CallStatus === 'canceled') {
+    updateFields.push('completed_at = CURRENT_TIMESTAMP');
   }
 
   updateValues.push(CallSid);
