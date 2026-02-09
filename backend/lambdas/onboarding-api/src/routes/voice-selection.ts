@@ -34,9 +34,24 @@ async function getVoices(requestId: string): Promise<APIGatewayProxyResult> {
       },
     });
 
-    // Filter to only show high-quality voices suitable for phone calls
+    // Filter to only show high-quality Spanish/Castilian voices suitable for phone calls
     const voices = response.data.voices
-      .filter((v: any) => v.category === 'premade' || v.category === 'professional')
+      .filter((v: any) => {
+        // Filtrar por categoría
+        if (v.category !== 'premade' && v.category !== 'professional') return false;
+
+        // Filtrar por idioma español/castellano
+        const labels = v.labels || {};
+        const language = (labels.language || '').toLowerCase();
+        const accent = (labels.accent || '').toLowerCase();
+
+        return language === 'es' ||
+               language.includes('spanish') ||
+               language.includes('español') ||
+               accent.includes('spanish') ||
+               accent.includes('castilian') ||
+               accent.includes('castellano');
+      })
       .map((v: any) => ({
         voice_id: v.voice_id,
         name: v.name,
@@ -45,9 +60,9 @@ async function getVoices(requestId: string): Promise<APIGatewayProxyResult> {
         description: v.description,
         labels: v.labels,
       }))
-      .slice(0, 10); // Return top 10 voices
+      .slice(0, 10); // Return top 10 Spanish voices
 
-    console.log(`[Get Voices] Returning ${voices.length} voices`);
+    console.log(`[Get Voices] Returning ${voices.length} Spanish voices`);
 
     return createSuccessResponse(
       voices,
@@ -78,7 +93,7 @@ async function selectVoice(
 ): Promise<APIGatewayProxyResult> {
   try {
     const customerId = getCustomerIdFromPath(event);
-    const body = parseBody<SelectVoiceRequest>(event.body);
+    const body = parseBody<SelectVoiceRequest>(event.body, event.isBase64Encoded);
 
     // Validate request
     const { error, value } = selectVoiceSchema.validate(body);
@@ -160,7 +175,7 @@ async function selectVoice(
 
     return createErrorResponse(
       'SELECT_VOICE_ERROR',
-      error.message,
+      'Failed to select voice',
       500,
       null,
       requestId
