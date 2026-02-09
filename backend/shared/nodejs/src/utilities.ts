@@ -4,16 +4,34 @@ import { createErrorResponse } from './response';
 import { ValidationError } from './validation';
 
 /**
- * Parse JSON body from API Gateway event
+ * Parse JSON body from API Gateway event.
+ *
+ * Handles base64-encoded bodies (event.isBase64Encoded).
  */
-export function parseBody<T = any>(body: string | null): T {
+export function parseBody<T = any>(body: string | null, isBase64Encoded?: boolean): T {
   if (!body) {
     throw new ValidationError('Request body is empty');
   }
 
+  let raw = isBase64Encoded
+    ? Buffer.from(body, 'base64').toString('utf-8')
+    : body;
+
+  // Strip UTF-8 BOM if present
+  if (raw.charCodeAt(0) === 0xFEFF) {
+    raw = raw.slice(1);
+  }
+
   try {
-    return JSON.parse(body) as T;
+    return JSON.parse(raw) as T;
   } catch (error) {
+    console.error('[parseBody] Failed to parse JSON', {
+      isBase64Encoded,
+      bodyLength: body.length,
+      rawLength: raw.length,
+      rawPreview: raw.substring(0, 200),
+      rawCharCodes: Array.from(raw.substring(0, 20)).map(c => c.charCodeAt(0)),
+    });
     throw new ValidationError('Invalid JSON in request body');
   }
 }
@@ -40,6 +58,7 @@ export async function getApiKeys(): Promise<{
   TWILIO_AUTH_TOKEN: string;
   ELEVENLABS_API_KEY: string;
   ANTHROPIC_API_KEY?: string;
+  TEST_PHONE_NUMBER?: string;
 }> {
   const secretName = process.env.API_KEYS_SECRET_NAME || 'consultia/production/api-keys';
   return await getSecret(secretName);

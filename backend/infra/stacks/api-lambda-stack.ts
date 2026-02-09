@@ -4,10 +4,12 @@ import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as rds from 'aws-cdk-lib/aws-rds';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
+import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import { Construct } from 'constructs';
 
 interface ApiLambdaStackProps extends cdk.StackProps {
@@ -15,8 +17,8 @@ interface ApiLambdaStackProps extends cdk.StackProps {
   database: rds.DatabaseCluster;
   databaseSecret: secretsmanager.ISecret;
   lambdaSecurityGroup: ec2.SecurityGroup;
-  knowledgeBaseBucket: s3.Bucket;
-  recordingsBucket: s3.Bucket;
+  knowledgeBaseBucket: s3.IBucket;
+  recordingsBucket: s3.IBucket;
   callLogsTable: dynamodb.Table;
   agentSessionsTable: dynamodb.Table;
 }
@@ -128,7 +130,8 @@ export class ApiLambdaStack extends cdk.Stack {
         FRONTEND_URL: 'https://master.d3y5kfh3d0f62.amplifyapp.com',
         DEPLOY_REGION: this.region,
         API_KEYS_SECRET_NAME: 'consultia/production/api-keys',
-        DEPLOY_AGENT_STATE_MACHINE_ARN: `arn:aws:states:${this.region}:${this.account}:stateMachine:consultia-deploy-agent`,
+        DEPLOY_AGENT_STATE_MACHINE_ARN: `arn:aws:states:${this.region}:${this.account}:stateMachine:consultia-create-agent`,
+        API_BASE_URL: `https://${this.api.restApiId}.execute-api.${this.region}.amazonaws.com/prod`,
       },
     });
 
@@ -143,7 +146,7 @@ export class ApiLambdaStack extends cdk.Stack {
     this.onboardingApiFunction.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ['states:StartExecution'],
-        resources: [`arn:aws:states:${this.region}:${this.account}:stateMachine:consultia-deploy-agent`],
+        resources: [`arn:aws:states:${this.region}:${this.account}:stateMachine:consultia-create-agent`],
       })
     );
 
@@ -204,10 +207,21 @@ export class ApiLambdaStack extends cdk.Stack {
       environment: {
         DB_SECRET_NAME: props.databaseSecret.secretName,
         API_KEYS_SECRET_NAME: 'consultia/production/api-keys',
+        API_BASE_URL: `https://${this.api.restApiId}.execute-api.${this.region}.amazonaws.com/prod`,
+        PROVISION_NUMBER_STATE_MACHINE_ARN: `arn:aws:states:${this.region}:${this.account}:stateMachine:consultia-provision-number`,
       },
     });
 
     props.databaseSecret.grantRead(this.webhookApiFunction);
+    apiKeysSecret.grantRead(this.webhookApiFunction);
+
+    // Grant webhook-api permission to trigger number provisioning after payment
+    this.webhookApiFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['states:StartExecution'],
+        resources: [`arn:aws:states:${this.region}:${this.account}:stateMachine:consultia-provision-number`],
+      })
+    );
 
     // API Gateway routes — Webhooks
     const webhooksResource = this.api.root.addResource('webhooks');
@@ -215,6 +229,61 @@ export class ApiLambdaStack extends cdk.Stack {
       defaultIntegration: new apigateway.LambdaIntegration(this.webhookApiFunction),
       anyMethod: true,
     });
+
+    // ========================================
+    // SQS: Business Scraping Queue
+    // ========================================
+    const scrapingDlq = new sqs.Queue(this, 'ScrapingDLQ', {
+      queueName: 'consultia-scraping-dlq',
+      retentionPeriod: cdk.Duration.days(14),
+    });
+
+    const scrapingQueue = new sqs.Queue(this, 'ScrapingQueue', {
+      queueName: 'consultia-scraping',
+      visibilityTimeout: cdk.Duration.seconds(90), // matches scraper Lambda timeout
+      retentionPeriod: cdk.Duration.days(4),
+      deadLetterQueue: {
+        queue: scrapingDlq,
+        maxReceiveCount: 3,
+      },
+    });
+
+    // Give onboarding Lambda permission to send scraping jobs
+    scrapingQueue.grantSendMessages(this.onboardingApiFunction);
+    this.onboardingApiFunction.addEnvironment('SCRAPING_QUEUE_URL', scrapingQueue.queueUrl);
+
+    // ========================================
+    // Lambda: Business Scraper (Python)
+    // ========================================
+    const businessScraperFunction = new lambda.Function(this, 'BusinessScraperFunction', {
+      functionName: 'consultia-business-scraper',
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: 'lambda_function.lambda_handler',
+      code: lambda.Code.fromAsset('../lambdas/business-scraper'),
+      timeout: cdk.Duration.seconds(60),
+      memorySize: 512,
+      vpc: props.vpc, vpcSubnets, securityGroups,
+      environment: {
+        DB_SECRET_NAME: props.databaseSecret.secretName,
+        DEPLOY_REGION: this.region,
+      },
+    });
+
+    props.databaseSecret.grantRead(businessScraperFunction);
+    businessScraperFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['bedrock:InvokeModel'],
+        resources: [
+          `arn:aws:bedrock:*::foundation-model/anthropic.claude-*`,
+          `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/eu.anthropic.*`,
+        ],
+      })
+    );
+
+    // Wire SQS → Business Scraper Lambda
+    businessScraperFunction.addEventSource(
+      new SqsEventSource(scrapingQueue, { batchSize: 1 })
+    );
 
     // ========================================
     // Lambda: Knowledge Base Processor (Python)
@@ -239,9 +308,39 @@ export class ApiLambdaStack extends cdk.Stack {
     this.kbProcessorFunction.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ['bedrock:InvokeModel'],
-        resources: [`arn:aws:bedrock:${this.region}::foundation-model/anthropic.claude-3-5-sonnet-20241022-v2:0`],
+        resources: [
+          `arn:aws:bedrock:*::foundation-model/anthropic.claude-*`,
+          `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/eu.anthropic.*`,
+        ],
       })
     );
+
+    // ========================================
+    // SQS: KB Processing Queue
+    // ========================================
+    const kbProcessingDlq = new sqs.Queue(this, 'KBProcessingDLQ', {
+      queueName: 'consultia-kb-processing-dlq',
+      retentionPeriod: cdk.Duration.days(14),
+    });
+
+    const kbProcessingQueue = new sqs.Queue(this, 'KBProcessingQueue', {
+      queueName: 'consultia-kb-processing',
+      visibilityTimeout: cdk.Duration.minutes(15), // matches KB Processor Lambda timeout
+      retentionPeriod: cdk.Duration.days(4),
+      deadLetterQueue: {
+        queue: kbProcessingDlq,
+        maxReceiveCount: 3,
+      },
+    });
+
+    // Wire SQS → KB Processor Lambda
+    this.kbProcessorFunction.addEventSource(
+      new SqsEventSource(kbProcessingQueue, { batchSize: 1 })
+    );
+
+    // Give onboarding Lambda permission to send messages + the queue URL
+    kbProcessingQueue.grantSendMessages(this.onboardingApiFunction);
+    this.onboardingApiFunction.addEnvironment('KB_PROCESSING_QUEUE_URL', kbProcessingQueue.queueUrl);
 
     // ========================================
     // Lambda: Agent Deployment (4 Step Functions tasks)
@@ -267,7 +366,7 @@ export class ApiLambdaStack extends cdk.Stack {
       memorySize: 512,
       vpc: props.vpc, vpcSubnets, securityGroups,
       layers: [sharedLayer],
-      environment: { DB_SECRET_NAME: props.databaseSecret.secretName, API_KEYS_SECRET_NAME: 'consultia/production/api-keys', ACTION: 'provision-number' },
+      environment: { DB_SECRET_NAME: props.databaseSecret.secretName, API_KEYS_SECRET_NAME: 'consultia/production/api-keys', ACTION: 'provision-number', API_BASE_URL: `https://${this.api.restApiId}.execute-api.${this.region}.amazonaws.com/prod` },
     });
 
     this.linkNumberFunction = new lambda.Function(this, 'LinkNumberFunction', {

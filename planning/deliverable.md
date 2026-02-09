@@ -899,6 +899,14 @@ await stripe.subscriptionItems.createUsageRecord(
 - **Lambda Environment Variables**: Only ARNs to Secrets Manager, no plaintext secrets
 - **Frontend**: No API keys exposed, all sensitive calls through backend
 
+### Shared Test Phone Number
+- **Secret key**: `TEST_PHONE_NUMBER` in `consultia/production/api-keys`
+- **Current value**: `+16593364513` (US Twilio number)
+- **Purpose**: Used as `From` number for outbound test calls when agent has no dedicated number yet (pre-payment, status `testing`)
+- **Flow**: Agent in `testing` status → user requests test call → Lambda reads `TEST_PHONE_NUMBER` from Secrets Manager → Twilio outbound call uses it as caller ID
+- **NOT an env var**: Read at runtime via `getApiKeys()`, not baked into Lambda env at deploy time
+- **To change**: Update the `TEST_PHONE_NUMBER` key in Secrets Manager secret `consultia/production/api-keys`
+
 ### Input Validation
 - File uploads: Max 10MB, validate MIME types (PDF, DOCX, TXT only)
 - Phone numbers: Regex validation for E.164 format (+34XXXXXXXXX)

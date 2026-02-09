@@ -57,13 +57,13 @@ export async function handleTestCall(
               p.phone_number, p.phone_id
        FROM agents a
        LEFT JOIN phone_numbers p ON p.agent_id = a.agent_id
-       WHERE a.customer_id = $1 AND a.status = 'active'
+       WHERE a.customer_id = $1 AND a.status IN ('testing', 'active')
        ORDER BY a.created_at DESC
        LIMIT 1`,
       [customerId]
     );
 
-    if (agentResult.rows.length === 0 || !agentResult.rows[0].phone_number) {
+    if (agentResult.rows.length === 0 || !agentResult.rows[0].elevenlabs_agent_id) {
       return createErrorResponse(
         'AGENT_NOT_READY',
         'Agent is not deployed yet. Please complete deployment first.',
@@ -75,8 +75,23 @@ export async function handleTestCall(
 
     const agent = agentResult.rows[0];
 
-    // Get Twilio credentials
-    const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN } = await getApiKeys();
+    // Determine the From number: use agent's dedicated number, or fall back to shared test number from Secrets Manager
+    const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TEST_PHONE_NUMBER } = await getApiKeys();
+    const fromNumber = agent.phone_number || TEST_PHONE_NUMBER;
+    if (!fromNumber) {
+      console.error('[Test Call] No phone number available', {
+        agent_id: agent.agent_id,
+        has_phone_number: !!agent.phone_number,
+        has_test_phone_number: !!TEST_PHONE_NUMBER,
+      });
+      return createErrorResponse(
+        'NO_PHONE_NUMBER',
+        'No phone number available for test calls. Please contact support.',
+        500,
+        null,
+        requestId
+      );
+    }
 
     // Make outbound call via Twilio API
     const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Calls.json`;
@@ -87,7 +102,7 @@ export async function handleTestCall(
 
     const callData = new URLSearchParams();
     callData.append('To', test_phone_number);
-    callData.append('From', agent.phone_number);
+    callData.append('From', fromNumber);
     callData.append('Url', voiceWebhookUrl); // Our webhook that connects to ElevenLabs
     callData.append('StatusCallback', `${process.env.API_BASE_URL}/webhooks/twilio/test-call-status/${customerId}`);
     // Twilio requires each StatusCallbackEvent as a separate parameter
@@ -99,8 +114,9 @@ export async function handleTestCall(
     callData.append('Record', 'true'); // Record the call for testing
 
     console.log('[Test Call] Initiating Twilio call', {
-      from: agent.phone_number,
+      from: fromNumber,
       to: test_phone_number,
+      using_test_number: !agent.phone_number,
     });
 
     const twilioResponse = await axios.post(twilioUrl, callData.toString(), {
